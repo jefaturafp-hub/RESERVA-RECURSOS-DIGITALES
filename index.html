@@ -3,875 +3,792 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reserva de Recursos Digitales - IES Francés de Aranda</title>
-  
-  <!-- Tailwind CSS CDN -->
+  <title>IES Francés de Aranda - Reserva de Recursos Digitales</title>
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  
-  <!-- React & ReactDOM CDN -->
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  
-  <!-- Babel CDN para transpilar JSX en tiempo de ejecución -->
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- Babel Standalone -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  
-  <!-- Lucide Icons CDN -->
+  <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  </style>
 </head>
-<body class="bg-slate-50 font-sans antialiased">
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen">
 
   <div id="root"></div>
 
   <script type="text/babel">
     const { useState, useEffect, useMemo } = React;
 
-    // Componente auxiliar para renderizar iconos de Lucide dinámicamente
-    const Icon = ({ name, className = "h-4 w-4" }) => {
-      useEffect(() => {
-        if (window.lucide) {
-          window.lucide.createIcons();
-        }
-      }, [name]);
-      return <i data-lucide={name} className={className}></i>;
-    };
+    // Configuración del correo administrador único
+    const ADMIN_EMAIL = 'jefatura@iesfrancesdearanda.es';
 
-    // Declaración de constantes globales
-    const DOMAIN = "@iesfrancesdearanda.es";
-    const TOTAL_PORTATILES_POR_CARRO = 22;
-
-    const PERIODOS = [
-      { id: 1, nombre: "1ª Hora", rango: "8:30 - 9:20" },
-      { id: 2, nombre: "2ª Hora", rango: "9:25 - 10:15" },
-      { id: 3, nombre: "3ª Hora", rango: "10:20 - 11:10" },
-      { id: 'recreo', nombre: "Recreo", rango: "11:10 - 11:40", esRecreo: true },
-      { id: 4, nombre: "4ª Hora", rango: "11:40 - 12:30" },
-      { id: 5, nombre: "5ª Hora", rango: "12:35 - 13:25" },
-      { id: 6, nombre: "6ª Hora", rango: "13:30 - 14:20" }
+    // Lista de Recursos disponibles en el centro
+    const RECURSOS_INICIALES = [
+      { id: 'aula_a03', nombre: 'Aula A.0.3 (Ordenadores)', tipo: 'aula', ubicacion: 'Planta Baja - Edificio Principal', capacidad: '30 puestos', icono: 'laptop' },
+      { id: 'aula_inf1', nombre: 'Aula Informática 1', tipo: 'aula', ubicacion: 'Planta 1 - Ala Este', capacidad: '28 puestos', icono: 'monitor' },
+      { id: 'aula_inf2', nombre: 'Aula Informática 2', tipo: 'aula', ubicacion: 'Planta 1 - Ala Oeste', capacidad: '26 puestos', icono: 'monitor' },
+      { id: 'carrito_a', nombre: 'Carrito Portátiles A (Chromebooks)', tipo: 'móvil', ubicacion: 'Departamento Tecnología', capacidad: '32 unidades', icono: 'hard-drive' },
+      { id: 'carrito_b', nombre: 'Carrito Portátiles B (Windows)', tipo: 'móvil', ubicacion: 'Biblioteca', capacidad: '25 unidades', icono: 'hard-drive' },
+      { id: 'proyector_act', nombre: 'Proyector & Audio Salón de Actos', tipo: 'audiovisual', ubicacion: 'Salón de Actos', capacidad: 'Gran aforo', icono: 'tv' }
     ];
 
-    const RECURSOS = {
-      CARRO_1: { id: "carro_1", nombre: "Carro 1ª Planta", tipo: "laptop", max: TOTAL_PORTATILES_POR_CARRO, ubicacion: "Planta 1" },
-      CARRO_2: { id: "carro_2", nombre: "Carro 2ª Planta", tipo: "laptop", max: TOTAL_PORTATILES_POR_CARRO, ubicacion: "Planta 2" },
-      CARRO_UM: { id: "carro_um", nombre: "Carro Usos Múltiples", tipo: "laptop", max: TOTAL_PORTATILES_POR_CARRO, ubicacion: "Planta Baja" },
-      AULA_INF2: { id: "aula_inf2", nombre: "Aula Informática 2", tipo: "aula", max: 1, ubicacion: "Planta 1" },
-      AULA_A03: { id: "aula_a03", nombre: "Aula A.0.3", tipo: "aula", max: 1, ubicacion: "Planta Baja" }, 
-      NORMATIVA: { id: "normativa", nombre: "Uso por Normativa (Fijo)", tipo: "normativa", max: 999, ubicacion: "Aula propia/Taller" }
-    };
-
-    const NIVELES = ["1º ESO", "2º ESO", "3º ESO", "4º ESO", "Bachillerato/Otros"];
-    const DIAS_SEMANA_NOMBRES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
-    const MESES_NOMBRES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-
-    const formatearFechaBonita = (fechaStr) => {
-      if (!fechaStr) return "";
-      const parts = fechaStr.split('-');
-      if (parts.length !== 3) return fechaStr;
-      const date = new Date(parts[0], parts[1] - 1, parts[2]);
-      const opciones = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-      return date.toLocaleDateString('es-ES', opciones);
-    };
-
-    const DEMO_USERS = [
-      { email: "ana.sanchez" + DOMAIN, nombre: "Ana Sánchez (Tecnología)", rol: "docente", contrasenia: "tecnologia2026" },
-      { email: "carlos.gomez" + DOMAIN, nombre: "Carlos Gómez (Matemáticas)", rol: "docente", contrasenia: "mates2026" },
-      { email: "marta.aragon" + DOMAIN, nombre: "Marta de la Fuente (Admin/TIC)", rol: "admin", contrasenia: "admin2026" }
+    const TRAMOS_HORARIOS = [
+      { id: '1h', nombre: '1ª Hora', hora: '08:30 - 09:25' },
+      { id: '2h', nombre: '2ª Hora', hora: '09:25 - 10:20' },
+      { id: '3h', nombre: '3ª Hora', hora: '10:20 - 11:15' },
+      { id: 'rec', nombre: 'Recreo', hora: '11:15 - 11:45' },
+      { id: '4h', nombre: '4ª Hora', hora: '11:45 - 12:40' },
+      { id: '5h', nombre: '5ª Hora', hora: '12:40 - 13:35' },
+      { id: '6h', nombre: '6ª Hora', hora: '13:35 - 14:30' }
     ];
 
+    // Cuentas de demostración
+    const CUENTAS_DEMO = [
+      { email: 'jefatura@iesfrancesdearanda.es', pass: 'jefatura2026', nombre: 'Jefatura de Estudios', rol: 'Administrador' },
+      { email: 'a.sanchez@iesfrancesdearanda.es', pass: 'tecnologia2026', nombre: 'Prof. Ana Sánchez', rol: 'Profesorado' },
+      { email: 'm.perez@iesfrancesdearanda.es', pass: 'mates2026', nombre: 'Prof. Manuel Pérez', rol: 'Profesorado' }
+    ];
+
+    // Reservas iniciales de muestra
     const RESERVAS_INICIALES = [
-      { id: "res-1", fecha: "2026-09-07", periodoId: 1, recursoId: "carro_1", cantidad: 15, materia: "Taller de Robótica", nivel: "3º ESO", grupo: "A", docenteEmail: "ana.sanchez@iesfrancesdearanda.es", docenteNombre: "Ana Sánchez (Tecnología)", creadoEn: "2026-09-05T09:00:00.000Z" },
-      { id: "res-2", fecha: "2026-09-07", periodoId: 1, recursoId: "carro_1", cantidad: 7, materia: "Tecnología y Dig.", nivel: "1º ESO", grupo: "B", docenteEmail: "carlos.gomez@iesfrancesdearanda.es", docenteNombre: "Carlos Gómez (Matemáticas)", creadoEn: "2026-09-05T10:15:00.000Z" },
-      { id: "res-norm-1", fecha: "2026-09-07", periodoId: 2, recursoId: "normativa", cantidad: 1, materia: "Tecnología y Digitalización", nivel: "2º ESO", grupo: "A", docenteEmail: "ana.sanchez@iesfrancesdearanda.es", docenteNombre: "Ana Sánchez (Tecnología)", creadoEn: "2026-09-01T08:00:00.000Z", esNormativa: true },
-      { id: "res-3", fecha: "2026-09-08", periodoId: 2, recursoId: "aula_inf2", cantidad: 1, materia: "Pensamiento Computacional", nivel: "2º ESO", grupo: "C", docenteEmail: "ana.sanchez@iesfrancesdearanda.es", docenteNombre: "Ana Sánchez (Tecnología)", creadoEn: "2026-09-05T11:00:00.000Z" },
-      { id: "res-aula-a03-1", fecha: "2026-09-07", periodoId: 3, recursoId: "aula_a03", cantidad: 1, materia: "Diseño Web 3D", nivel: "4º ESO", grupo: "B", docenteEmail: "carlos.gomez@iesfrancesdearanda.es", docenteNombre: "Carlos Gómez (Matemáticas)", creadoEn: "2026-09-05T12:00:00.000Z" },
-      { id: "res-norm-2", fecha: "2026-09-08", periodoId: 4, recursoId: "normativa", cantidad: 1, materia: "Robótica Aplicada", nivel: "3º ESO", grupo: "B", docenteEmail: "ana.sanchez@iesfrancesdearanda.es", docenteNombre: "Ana Sánchez (Tecnología)", creadoEn: "2026-09-01T08:00:00.000Z", esNormativa: true },
-      { id: "res-4", fecha: "2026-09-09", periodoId: 4, recursoId: "carro_2", cantidad: 12, materia: "Estadística Interactiva", nivel: "4º ESO", grupo: "A", docenteEmail: "carlos.gomez@iesfrancesdearanda.es", docenteNombre: "Carlos Gómez (Matemáticas)", creadoEn: "2026-09-06T18:30:00.000Z" },
-      { id: "res-norm-3", fecha: "2026-09-09", periodoId: 5, recursoId: "normativa", cantidad: 1, materia: "Informática y Programación", nivel: "4º ESO", grupo: "C", docenteEmail: "marta.aragon@iesfrancesdearanda.es", docenteNombre: "Marta de la Fuente (Admin/TIC)", creadoEn: "2026-09-01T08:00:00.000Z", esNormativa: true },
-      { id: "res-aula-a03-2", fecha: "2026-09-10", periodoId: 1, recursoId: "aula_a03", cantidad: 1, materia: "Programación de Videojuegos", nivel: "1º ESO", grupo: "A", docenteEmail: "ana.sanchez@iesfrancesdearanda.es", docenteNombre: "Ana Sánchez (Tecnología)", creadoEn: "2026-09-06T10:00:00.000Z" },
-      { id: "res-5", fecha: "2026-09-10", periodoId: 5, recursoId: "carro_um", cantidad: 20, materia: "Historia con TIC", nivel: "4º ESO", grupo: "B", docenteEmail: "ana.sanchez@iesfrancesdearanda.es", docenteNombre: "Ana Sánchez (Tecnología)", creadoEn: "2026-09-06T19:00:00.000Z" },
-      { id: "res-6", fecha: "2026-09-11", periodoId: 3, recursoId: "carro_1", cantidad: 10, materia: "Taller Digital", nivel: "1º ESO", grupo: "A", docenteEmail: "carlos.gomez@iesfrancesdearanda.es", docenteNombre: "Carlos Gómez (Matemáticas)", creadoEn: "2026-09-06T20:00:00.000Z" }
+      {
+        id: 'res-1',
+        recursoId: 'aula_a03',
+        fecha: new Date().toISOString().split('T')[0],
+        tramoId: '2h',
+        usuarioEmail: 'a.sanchez@iesfrancesdearanda.es',
+        usuarioNombre: 'Prof. Ana Sánchez',
+        grupo: '3º ESO B',
+        materia: 'Tecnología y Digitalización',
+        observaciones: 'Sesión de programación con Scratch'
+      },
+      {
+        id: 'res-2',
+        recursoId: 'carrito_a',
+        fecha: new Date().toISOString().split('T')[0],
+        tramoId: '4h',
+        usuarioEmail: 'm.perez@iesfrancesdearanda.es',
+        usuarioNombre: 'Prof. Manuel Pérez',
+        grupo: '1º Bachillerato A',
+        materia: 'Matemáticas',
+        observaciones: 'Uso de GeoGebra'
+      }
     ];
 
     function App() {
-      const [currentUser, setCurrentUser] = useState(null);
-      const [loginEmail, setLoginEmail] = useState("");
-      const [loginName, setLoginName] = useState("");
-      const [loginPassword, setLoginPassword] = useState("");
-      const [loginRole, setLoginRole] = useState("docente");
-      const [showPassword, setShowPassword] = useState(false);
-      const [loginError, setLoginError] = useState("");
-
-      const [fechaSeleccionada, setFechaSeleccionada] = useState("2026-09-07"); 
-      const [reservas, setReservas] = useState(RESERVAS_INICIALES);
-      
-      const [viewYear, setViewYear] = useState(2026);
-      const [viewMonth, setViewMonth] = useState(8);
-
-      const [showReservaModal, setShowReservaModal] = useState(false);
-      const [editingReservaId, setEditingReservaId] = useState(null); 
-      const [modalPeriodo, setModalPeriodo] = useState(null);
-      const [modalRecurso, setModalRecurso] = useState(null);
-      const [modalMateria, setModalMateria] = useState("");
-      const [modalNivel, setModalNivel] = useState("1º ESO");
-      const [modalGrupo, setModalGrupo] = useState("A");
-      const [modalCantidad, setModalCantidad] = useState(1);
-      const [modalEsNormativa, setModalEsNormativa] = useState(false);
-      const [modalError, setModalError] = useState("");
-
-      const [currentTab, setCurrentTab] = useState("calendar"); 
-      const [filtroRecurso, setFiltroRecurso] = useState("all");
-      const [toastMessage, setToastMessage] = useState(null);
-
-      useEffect(() => {
-        const savedReservas = localStorage.getItem('ies_reservas_recursos_v4_update');
-        if (savedReservas) {
-          setReservas(JSON.parse(savedReservas));
-        }
-      }, []);
-
-      useEffect(() => {
-        const d = new Date(fechaSeleccionada);
-        setViewYear(d.getFullYear());
-        setViewMonth(d.getMonth());
-      }, [fechaSeleccionada]);
-
-      useEffect(() => {
-        if (window.lucide) {
-          window.lucide.createIcons();
-        }
+      // Estado de Autenticación
+      const [usuario, setUsuario] = useState(() => {
+        const saved = localStorage.getItem('ies_user');
+        return saved ? JSON.parse(saved) : null;
       });
+      const [emailInput, setEmailInput] = useState('');
+      const [passwordInput, setPasswordInput] = useState('');
+      const [loginError, setLoginError] = useState('');
 
-      const saveReservasData = (nuevasReservas) => {
-        setReservas(nuevasReservas);
-        localStorage.setItem('ies_reservas_recursos_v4_update', JSON.stringify(nuevasReservas));
-      };
+      // Fecha Seleccionada y Vista
+      const [fechaSeleccionada, setFechaSeleccionada] = useState(new Date().toISOString().split('T')[0]);
+      const [mesCalendario, setMesCalendario] = useState(new Date());
+      const [tabActiva, setTabActiva] = useState('diario'); // 'diario', 'mis_reservas', 'admin'
+      
+      // Estado de Reservas y Recursos
+      const [reservas, setReservas] = useState(() => {
+        const saved = localStorage.getItem('ies_reservas');
+        return saved ? JSON.parse(saved) : RESERVAS_INICIALES;
+      });
+      const [filtroTipo, setFiltroTipo] = useState('todos');
 
-      const showToast = (message) => {
-        setToastMessage(message);
-        setTimeout(() => {
-          setToastMessage(null);
-        }, 4000);
-      };
+      // Estado Modal de Reserva
+      const [modalAbierto, setModalAbierto] = useState(false);
+      const [reservaForm, setReservaForm] = useState({
+        recursoId: 'aula_a03',
+        tramoId: '1h',
+        grupo: '',
+        materia: '',
+        observaciones: ''
+      });
+      const [mensajeExito, setMensajeExito] = useState('');
 
-      const handleDemoClick = (user) => {
-        setLoginEmail(user.email.replace(DOMAIN, ""));
-        setLoginName(user.nombre);
-        setLoginRole(user.rol);
-        setLoginPassword(user.contrasenia);
-        showToast(`Datos de ${user.nombre} listos. Pulsa 'Entrar SSO' para validar.`);
-      };
+      useEffect(() => {
+        localStorage.setItem('ies_reservas', JSON.stringify(reservas));
+      }, [reservas]);
 
-      const handleCustomLogin = (e) => {
+      // Lógica de Validación Estricta de Admin
+      const esAdmin = useMemo(() => {
+        if (!usuario || !usuario.email) return false;
+        return usuario.email.trim().toLowerCase() === ADMIN_EMAIL.trim().toLowerCase();
+      }, [usuario]);
+
+      // Manejo del Login
+      const handleLogin = (e) => {
         e.preventDefault();
-        if (!loginEmail.trim()) {
-          setLoginError("Introduce tu correo corporativo.");
-          return;
-        }
-        if (!loginPassword.trim()) {
-          setLoginError("Por favor, introduce tu contraseña corporativa.");
-          return;
-        }
-        if (loginPassword.length < 5) {
-          setLoginError("La contraseña debe tener al menos 5 caracteres.");
-          return;
-        }
+        const emailLimpio = emailInput.trim().toLowerCase();
         
-        let emailCompleto = loginEmail.trim().toLowerCase();
-        if (!emailCompleto.endsWith(DOMAIN)) {
-          emailCompleto += DOMAIN;
+        if (!emailLimpio || !passwordInput) {
+          setLoginError('Por favor, introduce el correo corporativo y la contraseña.');
+          return;
         }
 
-        const nombreGenerado = loginName.trim() || emailCompleto.split('@')[0].split('.').map(n => n.charAt(0).toUpperCase() + n.slice(1)).join(' ');
+        if (!emailLimpio.endsWith('@iesfrancesdearanda.es')) {
+          setLoginError('El correo debe pertenecer al dominio @iesfrancesdearanda.es');
+          return;
+        }
 
-        const newUser = {
-          email: emailCompleto,
-          nombre: nombreGenerado,
-          rol: loginRole
+        // Restricción Estricta de Rol:
+        // Solo jefatura@iesfrancesdearanda.es tiene rol 'admin'
+        const rolAsignado = (emailLimpio === ADMIN_EMAIL.toLowerCase()) ? 'admin' : 'user';
+        const nombreMostrar = emailLimpio === ADMIN_EMAIL.toLowerCase() 
+          ? 'Jefatura de Estudios' 
+          : emailLimpio.split('@')[0].replace('.', ' ').toUpperCase();
+
+        const usuarioSesion = {
+          email: emailLimpio,
+          nombre: nombreMostrar,
+          rol: rolAsignado
         };
 
-        setCurrentUser(newUser);
-        showToast(`Sesión iniciada correctamente como ${nombreGenerado}`);
-        setLoginError("");
-        setLoginPassword("");
+        setUsuario(usuarioSesion);
+        localStorage.setItem('ies_user', JSON.stringify(usuarioSesion));
+        setLoginError('');
+        setEmailInput('');
+        setPasswordInput('');
+      };
+
+      const handleCargarDemo = (cuenta) => {
+        setEmailInput(cuenta.email);
+        setPasswordInput(cuenta.pass);
       };
 
       const handleLogout = () => {
-        setCurrentUser(null);
-        setCurrentTab("calendar");
-        showToast("Sesión cerrada correctamente.");
+        setUsuario(null);
+        localStorage.removeItem('ies_user');
       };
 
-      const cambiarDia = (offset) => {
-        const dateObj = new Date(fechaSeleccionada);
-        dateObj.setDate(dateObj.getDate() + offset);
+      // Calendario Auxiliares
+      const diasDelMes = useMemo(() => {
+        const year = mesCalendario.getFullYear();
+        const month = mesCalendario.getMonth();
+        const primerDia = new Date(year, month, 1);
+        const ultimoDia = new Date(year, month + 1, 0);
         
-        const diaSemana = dateObj.getDay();
-        if (diaSemana === 0) {
-          dateObj.setDate(dateObj.getDate() + (offset > 0 ? 1 : -2));
-        } else if (diaSemana === 6) {
-          dateObj.setDate(dateObj.getDate() + (offset > 0 ? 2 : -1));
+        const dias = [];
+        const diaSemanaInicio = primerDia.getDay() === 0 ? 6 : primerDia.getDay() - 1; // Lunes = 0
+
+        for (let i = 0; i < diaSemanaInicio; i++) {
+          dias.push(null);
         }
 
-        const anio = dateObj.getFullYear();
-        const mes = dateObj.getMonth();
-        const esCursoValido = (anio === 2026 && mes >= 8) || (anio === 2027 && mes <= 5);
-        
-        if (esCursoValido) {
-          setFechaSeleccionada(dateObj.toISOString().split('T')[0]);
-        } else {
-          showToast("La navegación está configurada para el curso 2026-2027 (Sept-Jun).");
-        }
-      };
-
-      const seleccionarDiaCalendario = (dia) => {
-        const mesStr = String(viewMonth + 1).padStart(2, '0');
-        const diaStr = String(dia).padStart(2, '0');
-        const nuevaFecha = `${viewYear}-${mesStr}-${diaStr}`;
-        
-        const d = new Date(nuevaFecha);
-        if (d.getDay() === 0 || d.getDay() === 6) {
-          showToast("No se permiten reservas de recursos los fines de semana.");
-          return;
-        }
-        setFechaSeleccionada(nuevaFecha);
-        showToast(`Mostrando reservas para el ${formatearFechaBonita(nuevaFecha)}`);
-      };
-
-      const cambiarMesCalendario = (offset) => {
-        let nuevoMes = viewMonth + offset;
-        let nuevoAnio = viewYear;
-        if (nuevoMes < 0) {
-          nuevoMes = 11;
-          nuevoAnio -= 1;
-        } else if (nuevoMes > 11) {
-          nuevoMes = 0;
-          nuevoAnio += 1;
-        }
-
-        const esCursoValido = (nuevoAnio === 2026 && nuevoMes >= 8) || (nuevoAnio === 2027 && nuevoMes <= 5);
-        if (esCursoValido) {
-          setViewMonth(nuevoMes);
-          setViewYear(nuevoAnio);
-        } else {
-          showToast("Navegación del calendario fijada para el curso 2026-2027 (Septiembre - Junio).");
-        }
-      };
-
-      const datosMesActual = useMemo(() => {
-        const primerDiaSemana = new Date(viewYear, viewMonth, 1).getDay(); 
-        const desfaseLunes = primerDiaSemana === 0 ? 6 : primerDiaSemana - 1;
-        const totalDias = new Date(viewYear, viewMonth + 1, 0).getDate();
-        
-        const celdasVacias = Array(desfaseLunes).fill(null);
-        const celdasDias = Array.from({ length: totalDias }, (_, i) => i + 1);
-        
-        return { celdasVacias, celdasDias };
-      }, [viewYear, viewMonth]);
-
-      const fechasDeLaSemana = useMemo(() => {
-        const current = new Date(fechaSeleccionada);
-        const day = current.getDay();
-        const diffToMonday = current.getDate() - day + (day === 0 ? -6 : 1); 
-        
-        const lunes = new Date(current.setDate(diffToMonday));
-        const semana = [];
-        
-        for (let i = 0; i < 5; i++) {
-          const tempDate = new Date(lunes);
-          tempDate.setDate(lunes.getDate() + i);
-          semana.push(tempDate.toISOString().split('T')[0]);
-        }
-        return semana;
-      }, [fechaSeleccionada]);
-
-      const getPortatilesDisponibles = (fecha, periodoId, recursoId) => {
-        const recurso = RECURSOS[recursoId.toUpperCase()] || RECURSOS[recursoId];
-        if (!recurso || recurso.tipo !== 'laptop') return 0;
-
-        const reservadoActualmente = reservas
-          .filter(r => r.fecha === fecha && r.periodoId === parseInt(periodoId) && r.recursoId === recursoId)
-          .filter(r => r.id !== editingReservaId)
-          .reduce((sum, r) => sum + r.cantidad, 0);
-
-        return Math.max(0, TOTAL_PORTATILES_POR_CARRO - reservadoActualmente);
-      };
-
-      const isAulaReservada = (fecha, periodoId, recursoId) => {
-        return reservas.some(r => r.fecha === fecha && r.periodoId === parseInt(periodoId) && r.recursoId === recursoId && r.id !== editingReservaId);
-      };
-
-      const getAulaReservaDetalles = (fecha, periodoId, recursoId) => {
-        return reservas.find(r => r.fecha === fecha && r.periodoId === parseInt(periodoId) && r.recursoId === recursoId);
-      };
-
-      const getCarroReservas = (fecha, periodoId, recursoId) => {
-        return reservas.filter(r => r.fecha === fecha && r.periodoId === parseInt(periodoId) && r.recursoId === recursoId);
-      };
-
-      const getNormativaReservas = (fecha, periodoId) => {
-        return reservas.filter(r => r.fecha === fecha && r.periodoId === parseInt(periodoId) && r.recursoId === "normativa");
-      };
-
-      const getReservasParaUnDia = (dia) => {
-        const mesStr = String(viewMonth + 1).padStart(2, '0');
-        const diaStr = String(dia).padStart(2, '0');
-        const fechaEvaluada = `${viewYear}-${mesStr}-${diaStr}`;
-        return reservas.filter(r => r.fecha === fechaEvaluada);
-      };
-
-      const abrirModalReserva = (periodo, recurso) => {
-        setEditingReservaId(null);
-        setModalPeriodo(periodo);
-        setModalRecurso(recurso);
-        setModalMateria("");
-        setModalNivel("1º ESO");
-        setModalGrupo("A");
-        setModalEsNormativa(recurso.tipo === 'normativa');
-        
-        if (recurso.tipo === 'laptop') {
-          const disponibles = getPortatilesDisponibles(fechaSeleccionada, periodo.id, recurso.id);
-          setModalCantidad(Math.min(15, disponibles));
-        } else {
-          setModalCantidad(1);
-        }
-        setModalError("");
-        setShowReservaModal(true);
-      };
-
-      const abrirModalEdicion = (reserva) => {
-        const recurso = RECURSOS[reserva.recursoId.toUpperCase()] || RECURSOS[reserva.recursoId];
-        const periodo = PERIODOS.find(p => p.id === reserva.periodoId);
-        
-        setEditingReservaId(reserva.id);
-        setModalPeriodo(periodo);
-        setModalRecurso(recurso);
-        setModalMateria(reserva.materia);
-        setModalNivel(reserva.nivel);
-        setModalGrupo(reserva.grupo);
-        setModalCantidad(reserva.cantidad);
-        setModalEsNormativa(reserva.esNormativa || recurso?.tipo === 'normativa');
-        setModalError("");
-        setShowReservaModal(true);
-      };
-
-      const handleCrearOEditarReserva = (e) => {
-        e.preventDefault();
-        setModalError("");
-
-        if (!modalMateria.trim()) {
-          setModalError("Por favor, introduce la materia para la justificación pedagógica.");
-          return;
-        }
-
-        if (modalRecurso.tipo === 'laptop') {
-          if (modalCantidad <= 0) {
-            setModalError("La cantidad de dispositivos debe ser mayor que cero.");
-            return;
-          }
-          const disponibles = getPortatilesDisponibles(fechaSeleccionada, modalPeriodo.id, modalRecurso.id);
-          if (modalCantidad > disponibles) {
-            setModalError(`Cupo insuficiente. Solo quedan ${disponibles} disponibles.`);
-            return;
-          }
-        } else if (modalRecurso.tipo === 'aula') {
-          if (isAulaReservada(fechaSeleccionada, modalPeriodo.id, modalRecurso.id)) {
-            setModalError("Este aula ya se encuentra reservada en el tramo solicitado.");
-            return;
-          }
-        }
-        
-        if (editingReservaId) {
-          const reservasActualizadas = reservas.map(r => {
-            if (r.id === editingReservaId) {
-              return {
-                ...r,
-                periodoId: modalPeriodo.id,
-                recursoId: modalRecurso.id,
-                cantidad: modalRecurso.tipo === 'laptop' ? parseInt(modalCantidad) : 1,
-                materia: modalMateria.trim(),
-                nivel: modalNivel,
-                grupo: modalGrupo.trim().toUpperCase(),
-                esNormativa: modalEsNormativa || modalRecurso.tipo === 'normativa',
-                editadoEn: new Date().toISOString()
-              };
-            }
-            return r;
+        for (let d = 1; d <= ultimoDia.getDate(); d++) {
+          const f = new Date(year, month, d);
+          const fechaStr = f.toISOString().split('T')[0];
+          dias.push({
+            diaNum: d,
+            fechaStr: fechaStr,
+            esFinSemana: f.getDay() === 0 || f.getDay() === 6
           });
-          saveReservasData(reservasActualizadas);
-          showToast("La reserva ha sido modificada y guardada correctamente.");
-        } else {
-          const nuevaReserva = {
-            id: "res-" + Date.now(),
-            fecha: fechaSeleccionada,
-            periodoId: modalPeriodo.id,
-            recursoId: modalRecurso.id,
-            cantidad: modalRecurso.tipo === 'laptop' ? parseInt(modalCantidad) : 1,
-            materia: modalMateria.trim(),
-            nivel: modalNivel,
-            grupo: modalGrupo.trim().toUpperCase(),
-            docenteEmail: currentUser.email,
-            docenteNombre: currentUser.nombre,
-            esNormativa: modalEsNormativa || modalRecurso.tipo === 'normativa',
-            creadoEn: new Date().toISOString()
-          };
-          saveReservasData([...reservas, nuevaReserva]);
-          showToast(`¡Reserva confirmada con éxito para ${nuevaReserva.nivel} ${nuevaReserva.grupo}!`);
         }
+        return dias;
+      }, [mesCalendario]);
 
-        setShowReservaModal(false);
-        setEditingReservaId(null);
-      };
-
-      const eliminarReserva = (id) => {
-        const reservaAEliminar = reservas.find(r => r.id === id);
-        if (!reservaAEliminar) return;
-
-        if (reservaAEliminar.docenteEmail !== currentUser.email && currentUser.rol !== 'admin') {
-          showToast("No tienes autorización para cancelar la reserva de otro compañero.");
-          return;
-        }
-
-        const confirmacion = window.confirm(`¿Seguro que deseas cancelar la reserva de "${reservaAEliminar.materia}"?`);
-        if (confirmacion) {
-          const filtradas = reservas.filter(r => r.id !== id);
-          saveReservasData(filtradas);
-          showToast("Reserva cancelada de manera inmediata.");
-        }
-      };
-
-      const reservasUsuarioLogueado = useMemo(() => {
-        if (!currentUser) return [];
-        return reservas.filter(r => r.docenteEmail === currentUser.email)
-          .sort((a, b) => b.fecha.localeCompare(a.fecha) || a.periodoId - b.periodoId);
-      }, [reservas, currentUser]);
-
-      const controlUsoGrupos = useMemo(() => {
-        const matriz = {};
-        NIVELES.forEach(nivel => {
-          matriz[nivel] = {};
-          fechasDeLaSemana.forEach(fecha => {
-            matriz[nivel][fecha] = { count: 0, portatiles: 0, aulas: 0, normativa: 0, materias: [] };
-          });
-        });
-
-        reservas.forEach(res => {
-          if (matriz[res.nivel] && matriz[res.nivel][res.fecha]) {
-            const celda = matriz[res.nivel][res.fecha];
-            celda.count += 1;
-            if (res.recursoId === 'aula_inf2' || res.recursoId === 'aula_a03') {
-              celda.aulas += 1;
-            } else if (res.recursoId === 'normativa' || res.esNormativa) {
-              celda.normativa += 1;
-            } else {
-              celda.portatiles += res.cantidad;
-            }
-            celda.materias.push({
-              id: res.id,
-              docente: res.docenteNombre.split(' ')[0],
-              docenteEmail: res.docenteEmail,
-              materia: res.materia,
-              nivel: res.nivel,
-              grupo: res.grupo,
-              cantidad: res.cantidad,
-              esNormativa: res.esNormativa || res.recursoId === 'normativa',
-              recursoId: res.recursoId,
-              recurso: RECURSOS[res.recursoId.toUpperCase()]?.nombre || res.recursoId
-            });
-          }
-        });
-
-        const totalesNivelSemana = {};
-        NIVELES.forEach(nivel => {
-          let totalDispositivosYHoras = 0;
-          let totalSesiones = 0;
-          fechasDeLaSemana.forEach(fecha => {
-            totalDispositivosYHoras += matriz[nivel][fecha].portatiles + (matriz[nivel][fecha].aulas * 22) + (matriz[nivel][fecha].normativa * 15);
-            totalSesiones += matriz[nivel][fecha].count;
-          });
-          totalesNivelSemana[nivel] = { totalDispositivosYHoras, totalSesiones };
-        });
-
-        return { matriz, totalesNivelSemana };
-      }, [reservas, fechasDeLaSemana]);
-
-      const stats = useMemo(() => {
-        const totalReservasCount = reservas.length;
-        const totalPortatilesReservados = reservas.filter(r => r.recursoId !== 'aula_inf2' && r.recursoId !== 'aula_a03' && r.recursoId !== 'normativa').reduce((acc, r) => acc + r.cantidad, 0);
-        const totalAulasCount = reservas.filter(r => r.recursoId === 'aula_inf2' || r.recursoId === 'aula_a03').length;
-        const totalNormativaCount = reservas.filter(r => r.recursoId === 'normativa' || r.esNormativa).length;
-
-        const usoPorRecurso = {
-          carro_1: reservas.filter(r => r.recursoId === 'carro_1').length,
-          carro_2: reservas.filter(r => r.recursoId === 'carro_2').length,
-          carro_um: reservas.filter(r => r.recursoId === 'carro_um').length,
-          aula_inf2: reservas.filter(r => r.recursoId === 'aula_inf2').length,
-          aula_a03: reservas.filter(r => r.recursoId === 'aula_a03').length,
-          normativa: totalNormativaCount
-        };
-
-        const rankingProfesores = {};
+      // Conteo de reservas por fecha
+      const mapaConteoReservas = useMemo(() => {
+        const map = {};
         reservas.forEach(r => {
-          rankingProfesores[r.docenteNombre] = (rankingProfesores[r.docenteNombre] || 0) + 1;
+          map[r.fecha] = (map[r.fecha] || 0) + 1;
         });
-
-        const rankingSorted = Object.entries(rankingProfesores)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 5);
-
-        return { totalReservasCount, totalPortatilesReservados, totalAulasCount, totalNormativaCount, usoPorRecurso, rankingSorted };
+        return map;
       }, [reservas]);
 
+      // Guardar Reserva
+      const handleCrearReserva = (e) => {
+        e.preventDefault();
+        if (!usuario) return;
+
+        // Comprobar disponibilidad
+        const ocupado = reservas.some(
+          r => r.fecha === fechaSeleccionada && 
+               r.recursoId === reservaForm.recursoId && 
+               r.tramoId === reservaForm.tramoId
+        );
+
+        if (ocupado) {
+          alert('El recurso ya se encuentra reservado en esta fecha y tramo horario.');
+          return;
+        }
+
+        const nuevaReserva = {
+          id: 'res-' + Date.now(),
+          recursoId: reservaForm.recursoId,
+          fecha: fechaSeleccionada,
+          tramoId: reservaForm.tramoId,
+          usuarioEmail: usuario.email,
+          usuarioNombre: usuario.nombre,
+          grupo: reservaForm.grupo || 'General',
+          materia: reservaForm.materia || 'Actividad Docente',
+          observaciones: reservaForm.observaciones || ''
+        };
+
+        setReservas([...reservas, nuevaReserva]);
+        setModalAbierto(false);
+        setMensajeExito('¡Reserva realizada con éxito!');
+        setTimeout(() => setMensajeExito(''), 4000);
+      };
+
+      const handleEliminarReserva = (id) => {
+        if (confirm('¿Estás seguro de cancelar esta reserva?')) {
+          setReservas(reservas.filter(r => r.id !== id));
+        }
+      };
+
+      // Si no ha iniciado sesión, mostrar pantalla de Login
+      if (!usuario) {
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
+            <div className="max-w-md w-full bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+              <div className="bg-indigo-900 p-6 text-white text-center">
+                <div className="w-16 h-16 bg-indigo-700 text-indigo-200 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-2xl shadow">
+                  IES
+                </div>
+                <h1 className="text-xl font-bold">IES Francés de Aranda</h1>
+                <p className="text-xs text-indigo-200 mt-1">Gestión y Reserva de Recursos Digitales</p>
+              </div>
+
+              <form onSubmit={handleLogin} className="p-6 space-y-4">
+                <h2 className="text-lg font-semibold text-slate-800 text-center mb-2">Acceso Corporativo</h2>
+                
+                {loginError && (
+                  <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-3 text-xs rounded">
+                    {loginError}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Correo Electrónico Corporativo</label>
+                  <input 
+                    type="email" 
+                    required
+                    placeholder="ejemplo@iesfrancesdearanda.es"
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Contraseña Corporativa</label>
+                  <input 
+                    type="password" 
+                    required
+                    placeholder="••••••••"
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <button 
+                  type="submit"
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg text-sm transition shadow"
+                >
+                  Iniciar Sesión
+                </button>
+
+                {/* Acceso Rápido Demo */}
+                <div className="mt-6 border-t border-slate-200 pt-4">
+                  <p className="text-xs text-slate-500 font-medium mb-2">Acceso rápido para demostración:</p>
+                  <div className="space-y-2">
+                    {CUENTAS_DEMO.map((cuenta, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleCargarDemo(cuenta)}
+                        className="w-full text-left p-2 rounded border border-slate-200 hover:bg-slate-50 flex justify-between items-center text-xs transition"
+                      >
+                        <div>
+                          <span className="font-semibold text-slate-700 block">{cuenta.nombre}</span>
+                          <span className="text-slate-500">{cuenta.email}</span>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${cuenta.rol === 'Administrador' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
+                          {cuenta.rol}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      }
+
+      // Aplicación Principal cuando hay usuario autenticado
       return (
-        <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800 antialiased font-medium">
-          
-          <header className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-md sticky top-0 z-30">
-            <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-4">
+        <div className="min-h-screen flex flex-col">
+          {/* Header Superior */}
+          <header className="bg-indigo-900 text-white shadow-md sticky top-0 z-30">
+            <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
               <div className="flex items-center space-x-3">
-                <div className="bg-amber-400 text-slate-950 p-2 rounded-xl shadow-inner flex items-center justify-center">
-                  <Icon name="laptop" className="h-6 w-6 stroke-[2.5]" />
+                <div className="w-10 h-10 bg-indigo-700 rounded-lg flex items-center justify-center font-bold text-lg border border-indigo-500">
+                  FA
                 </div>
                 <div>
-                  <h1 className="text-lg md:text-xl font-bold tracking-tight flex items-center gap-2">
-                    RESERVA DE RECURSOS DIGITALES
-                    <span className="hidden md:inline text-[10px] uppercase tracking-widest bg-indigo-700 text-amber-300 px-2 py-0.5 rounded-full font-semibold">
-                      IES FRANCÉS DE ARANDA
-                    </span>
-                  </h1>
-                  <p className="text-xs text-slate-300 font-medium">
-                    Gestión por Grupos y Niveles · <span className="text-amber-400">Orden ECD/465/2026 Aragón</span>
-                  </p>
+                  <h1 className="font-bold text-base leading-tight">IES Francés de Aranda</h1>
+                  <p className="text-xs text-indigo-200">Reserva de Recursos Digitales</p>
                 </div>
               </div>
 
-              {currentUser ? (
-                <div className="flex items-center space-x-3">
-                  <div className="hidden sm:flex flex-col text-right">
-                    <span className="text-sm font-semibold text-white flex items-center justify-end gap-1.5">
-                      {currentUser.rol === 'admin' && <Icon name="shield" className="h-3.5 w-3.5 text-amber-400" />}
-                      {currentUser.nombre}
+              {/* Info de usuario y botón salir */}
+              <div className="flex items-center space-x-4">
+                <div className="text-right hidden sm:block">
+                  <p className="text-xs font-semibold">{usuario.nombre}</p>
+                  <div className="flex items-center justify-end space-x-1">
+                    <span className={`inline-block w-2 h-2 rounded-full ${esAdmin ? 'bg-amber-400' : 'bg-emerald-400'}`}></span>
+                    <span className="text-[11px] text-indigo-200 font-mono">
+                      {esAdmin ? 'Rol: Administrador (Jefatura)' : 'Rol: Profesorado'}
                     </span>
-                    <span className="text-xs text-slate-300 font-mono">{currentUser.email}</span>
                   </div>
-                  
-                  <div className="flex flex-wrap items-center gap-1 bg-indigo-950/50 p-1 rounded-xl border border-indigo-700/35">
-                    <button 
-                      onClick={() => setCurrentTab("calendar")}
-                      className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 ${
-                        currentTab === "calendar" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-300 hover:text-white"
-                      }`}
-                    >
-                      Calendario
-                    </button>
-                    <button 
-                      onClick={() => setCurrentTab("group-control")}
-                      className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 flex items-center gap-1 ${
-                        currentTab === "group-control" ? "bg-indigo-600 text-white shadow-sm" : "text-amber-300 hover:text-amber-200"
-                      }`}
-                    >
-                      <Icon name="users" className="h-3.5 w-3.5" />
-                      <span>Control de Grupos</span>
-                    </button>
-                    <button 
-                      onClick={() => setCurrentTab("my-bookings")}
-                      className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 relative ${
-                        currentTab === "my-bookings" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-300 hover:text-white"
-                      }`}
-                    >
-                      Mis Reservas
-                      {reservasUsuarioLogueado.length > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-amber-400 text-slate-950 rounded-full text-[9px] w-4 h-4 flex items-center justify-center font-bold">
-                          {reservasUsuarioLogueado.length}
-                        </span>
-                      )}
-                    </button>
-                    {currentUser.rol === 'admin' && (
-                      <button 
-                        onClick={() => setCurrentTab("admin")}
-                        className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 ${
-                          currentTab === "admin" ? "bg-amber-400 text-slate-950 shadow-sm" : "text-amber-300 hover:text-white"
-                        }`}
-                      >
-                        Estadísticas
-                      </button>
-                    )}
-                    <button 
-                      onClick={() => setCurrentTab("regulations")}
-                      className={`p-1.5 text-xs font-semibold rounded-lg text-slate-300 hover:text-white transition-colors ${
-                        currentTab === "regulations" ? "bg-indigo-800 text-white" : ""
-                      }`}
-                    >
-                      <Icon name="info" className="h-4 w-4 text-slate-300" />
-                    </button>
-                  </div>
-
-                  <button 
-                    onClick={handleLogout}
-                    className="p-2 text-slate-300 hover:text-red-300 transition-colors bg-slate-800/60 rounded-xl border border-slate-700/40"
-                  >
-                    <Icon name="log-out" className="h-4 w-4" />
-                  </button>
                 </div>
-              ) : (
-                <span className="text-xs bg-indigo-950/60 text-slate-300 px-3 py-1 rounded-lg font-mono border border-indigo-800/40">
-                  Acceso Restringido Docentes
-                </span>
-              )}
+                <button
+                  onClick={handleLogout}
+                  className="bg-indigo-800 hover:bg-indigo-700 text-indigo-200 hover:text-white px-3 py-1.5 rounded-lg text-xs font-medium border border-indigo-700 transition"
+                >
+                  Cerrar Sesión
+                </button>
+              </div>
             </div>
           </header>
 
-          {toastMessage && (
-            <div className="fixed bottom-6 right-6 z-50 animate-bounce">
-              <div className="bg-slate-900 border-l-4 border-emerald-500 text-white px-5 py-4 rounded-xl shadow-2xl flex items-center space-x-3 max-w-sm">
-                <Icon name="check-circle" className="h-6 w-6 text-emerald-400 flex-shrink-0" />
-                <p className="text-sm font-semibold">{toastMessage}</p>
-              </div>
+          {/* Navegación por pestañas */}
+          <div className="bg-white border-b border-slate-200">
+            <div className="max-w-7xl mx-auto px-4 flex space-x-6">
+              <button
+                onClick={() => setTabActiva('diario')}
+                className={`py-3 text-xs font-semibold border-b-2 transition ${tabActiva === 'diario' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+              >
+                📅 Cuadro Horario de Recursos
+              </button>
+              <button
+                onClick={() => setTabActiva('mis_reservas')}
+                className={`py-3 text-xs font-semibold border-b-2 transition ${tabActiva === 'mis_reservas' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+              >
+                📋 Mis Reservas
+              </button>
+              {esAdmin && (
+                <button
+                  onClick={() => setTabActiva('admin')}
+                  className={`py-3 text-xs font-semibold border-b-2 transition flex items-center space-x-1 ${tabActiva === 'admin' ? 'border-amber-500 text-amber-700' : 'border-transparent text-slate-500 hover:text-amber-600'}`}
+                >
+                  <span>👑 Panel de Gestión (Jefatura)</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Banner de alerta de éxito */}
+          {mensajeExito && (
+            <div className="bg-emerald-600 text-white text-center py-2 text-xs font-medium shadow">
+              {mensajeExito}
             </div>
           )}
 
-          <main className="flex-grow max-w-7xl w-full mx-auto p-4 flex flex-col">
-            {!currentUser ? (
-              <div className="my-auto py-12 flex flex-col items-center">
-                <div className="max-w-md w-full bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100 flex flex-col">
-                  <div className="bg-gradient-to-br from-indigo-800 to-indigo-950 text-white p-6 text-center relative">
-                    <div className="mx-auto w-14 h-14 bg-amber-400 text-slate-950 rounded-2xl flex items-center justify-center mb-3 shadow-lg">
-                      <Icon name="monitor" className="h-7 w-7" />
+          {/* Contenido Principal */}
+          <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6">
+            
+            {/* VISTA 1: CUADRO DIARIO & CALENDARIO MENSUAL */}
+            {tabActiva === 'diario' && (
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                
+                {/* Lateral Izquierdo: CALENDARIO MENSUAL VISIBLE */}
+                <div className="lg:col-span-1 space-y-6">
+                  <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600">Calendario Mensual</h3>
+                      <div className="flex space-x-1">
+                        <button 
+                          onClick={() => setMesCalendario(new Date(mesCalendario.getFullYear(), mesCalendario.getMonth() - 1, 1))}
+                          className="p-1 hover:bg-slate-100 rounded text-slate-600 font-bold"
+                        >&lt;</button>
+                        <button 
+                          onClick={() => setMesCalendario(new Date(mesCalendario.getFullYear(), mesCalendario.getMonth() + 1, 1))}
+                          className="p-1 hover:bg-slate-100 rounded text-slate-600 font-bold"
+                        >&gt;</button>
+                      </div>
                     </div>
-                    <h2 className="text-xl font-bold tracking-tight">Acceso Docentes (SSO)</h2>
-                    <p className="text-xs text-slate-300 mt-1">IES Francés de Aranda (Teruel)</p>
+
+                    <div className="text-sm font-bold text-slate-800 capitalize mb-3 text-center">
+                      {mesCalendario.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
+                    </div>
+
+                    {/* Días de la semana */}
+                    <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-400 mb-1">
+                      <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span>
+                    </div>
+
+                    {/* Rejilla de días */}
+                    <div className="grid grid-cols-7 gap-1 text-xs">
+                      {diasDelMes.map((d, i) => {
+                        if (!d) return <div key={`empty-${i}`} className="h-8"></div>;
+                        const esHoy = d.fechaStr === fechaSeleccionada;
+                        const numReservas = mapaConteoReservas[d.fechaStr] || 0;
+
+                        return (
+                          <button
+                            key={d.fechaStr}
+                            disabled={d.esFinSemana}
+                            onClick={() => setFechaSeleccionada(d.fechaStr)}
+                            className={`h-8 rounded-lg relative flex flex-col items-center justify-center transition text-xs font-medium ${
+                              d.esFinSemana ? 'text-slate-300 bg-slate-50 cursor-not-allowed' :
+                              esHoy ? 'bg-indigo-600 text-white font-bold shadow' :
+                              'hover:bg-indigo-50 text-slate-700 bg-slate-50'
+                            }`}
+                          >
+                            <span>{d.diaNum}</span>
+                            {numReservas > 0 && !d.esFinSemana && (
+                              <span className={`w-1.5 h-1.5 rounded-full ${esHoy ? 'bg-amber-300' : 'bg-indigo-500'}`}></span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[10px] text-slate-400 text-center mt-3">Haz clic en un día laborable para ver el horario</p>
                   </div>
 
-                  <div className="p-6 space-y-5">
-                    <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-3 text-[11px] text-indigo-900 flex items-start space-x-2">
-                      <Icon name="info" className="h-4 w-4 text-indigo-600 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <span className="font-bold block">Autenticación Obligatoria</span>
-                        Introduce las credenciales corporativas asociadas a tu cuenta del centro.
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Acceso Rápido Demo:</span>
-                      <div className="grid grid-cols-1 gap-1.5">
-                        {DEMO_USERS.map((user) => (
-                          <button
-                            key={user.email}
-                            onClick={() => handleDemoClick(user)}
-                            className="w-full text-left p-2.5 bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 rounded-xl transition-all duration-150 flex items-center justify-between group"
-                          >
-                            <div className="truncate pr-2">
-                              <p className="text-xs font-bold text-slate-800 group-hover:text-indigo-900">{user.nombre}</p>
-                              <p className="text-[10px] text-slate-500 font-mono truncate">{user.email}</p>
-                            </div>
-                            <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                              user.rol === 'admin' ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-700'
-                            }`}>
-                              {user.rol}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <form onSubmit={handleCustomLogin} className="space-y-3.5">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Usuario de Correo</label>
-                        <div className="relative">
-                          <input 
-                            type="text" 
-                            value={loginEmail}
-                            onChange={(e) => setLoginEmail(e.target.value)}
-                            placeholder="nombre.apellido"
-                            className="w-full pl-3 pr-28 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-sm"
-                          />
-                          <span className="absolute right-3 top-2.5 text-slate-400 text-xs font-semibold pointer-events-none">{DOMAIN}</span>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Nombre Completo</label>
-                        <input 
-                          type="text" 
-                          value={loginName}
-                          onChange={(e) => setLoginName(e.target.value)}
-                          placeholder="Ej: Laura Pérez"
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Contraseña</label>
-                        <input 
-                          type={showPassword ? "text" : "password"} 
-                          value={loginPassword}
-                          onChange={(e) => setLoginPassword(e.target.value)}
-                          placeholder="••••••••"
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <select 
-                            value={loginRole}
-                            onChange={(e) => setLoginRole(e.target.value)}
-                            className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                          >
-                            <option value="docente">Docente</option>
-                            <option value="admin">Administrador</option>
-                          </select>
-                        </div>
-                        
-                        <button
-                          type="submit"
-                          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-xl text-sm flex items-center justify-center gap-1.5"
-                        >
-                          <Icon name="user" className="h-4 w-4" /> Entrar SSO
-                        </button>
-                      </div>
-
-                      {loginError && <p className="text-red-500 text-xs font-semibold text-center">{loginError}</p>}
-                    </form>
+                  {/* Acceso directo Nueva Reserva */}
+                  <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+                    <h4 className="text-xs font-bold text-indigo-900 mb-1">¿Necesitas reservar?</h4>
+                    <p className="text-xs text-indigo-700 mb-3">Puedes solicitar cualquier recurso informático disponible para tus clases.</p>
+                    <button
+                      onClick={() => setModalAbierto(true)}
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg text-xs font-semibold shadow transition"
+                    >
+                      + Nueva Reserva
+                    </button>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="space-y-6 flex-grow flex flex-col">
-                {currentTab === "calendar" && (
-                  <div className="space-y-6 flex-grow flex flex-col">
-                    <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex flex-wrap items-center justify-between gap-4">
-                      <div className="flex items-center space-x-2">
-                        <button onClick={() => cambiarDia(-1)} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200">
-                          <Icon name="chevron-left" className="h-4 w-4" />
-                        </button>
-                        <input 
-                          type="date" 
-                          value={fechaSeleccionada}
-                          onChange={(e) => setFechaSeleccionada(e.target.value)}
-                          className="px-3 py-2 bg-indigo-50/50 text-indigo-950 font-bold border-2 border-indigo-100 rounded-xl text-xs"
-                        />
-                        <button onClick={() => cambiarDia(1)} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200">
-                          <Icon name="chevron-right" className="h-4 w-4" />
-                        </button>
-                        <span className="hidden lg:inline text-slate-600 font-bold text-xs pl-2">
-                          {formatearFechaBonita(fechaSeleccionada)}
-                        </span>
-                      </div>
 
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-500 uppercase">Filtrar:</span>
-                        <select 
-                          value={filtroRecurso} 
-                          onChange={(e) => setFiltroRecurso(e.target.value)}
-                          className="p-1.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold"
-                        >
-                          <option value="all">Todos</option>
-                          <option value="laptop">Carros</option>
-                          <option value="aula">Aulas Inf.</option>
-                          <option value="normativa">Normativa</option>
-                        </select>
-                      </div>
+                {/* Área Principal: TABLA DE DISPONIBILIDAD DIARIA */}
+                <div className="lg:col-span-3 space-y-4">
+                  <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
+                    <div>
+                      <h2 className="text-base font-bold text-slate-800">
+                        Ocupación del día: <span className="text-indigo-600">{new Date(fechaSeleccionada + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                      </h2>
+                      <p className="text-xs text-slate-500">Visualizando estado de aulas y carritos en cada tramo lectivo</p>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start flex-grow">
-                      <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 space-y-4 col-span-1">
-                        <div className="flex items-center justify-between border-b pb-2">
-                          <button onClick={() => cambiarMesCalendario(-1)} className="p-1"><Icon name="chevron-left" className="h-4 w-4" /></button>
-                          <span className="font-bold text-slate-900 text-sm">{MESES_NOMBRES[viewMonth]} {viewYear}</span>
-                          <button onClick={() => cambiarMesCalendario(1)} className="p-1"><Icon name="chevron-right" className="h-4 w-4" /></button>
-                        </div>
+                    {/* Filtros */}
+                    <div className="flex space-x-2">
+                      <button 
+                        onClick={() => setFiltroTipo('todos')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${filtroTipo === 'todos' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                      >
+                        Todos
+                      </button>
+                      <button 
+                        onClick={() => setFiltroTipo('aula')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${filtroTipo === 'aula' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                      >
+                        Aulas de Informática
+                      </button>
+                      <button 
+                        onClick={() => setFiltroTipo('móvil')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${filtroTipo === 'móvil' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                      >
+                        Carritos Móviles
+                      </button>
+                    </div>
+                  </div>
 
-                        <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-400 uppercase">
-                          <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span className="text-red-400">S</span><span className="text-red-400">D</span>
-                        </div>
+                  {/* Tabla Horaria */}
+                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto custom-scrollbar">
+                    <table className="w-full text-left border-collapse min-w-[700px]">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                          <th className="p-3 w-48">Recurso</th>
+                          {TRAMOS_HORARIOS.map(tramo => (
+                            <th key={tramo.id} className="p-2 text-center border-l border-slate-200">
+                              <div>{tramo.nombre}</div>
+                              <div className="text-[9px] text-slate-400 font-normal">{tramo.hora}</div>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 text-xs">
+                        {RECURSOS_INICIALES
+                          .filter(r => filtroTipo === 'todos' || r.tipo === filtroTipo)
+                          .map(recurso => (
+                            <tr key={recurso.id} className="hover:bg-slate-50/50">
+                              <td className="p-3 font-medium text-slate-800 bg-slate-50/30">
+                                <div className="font-semibold">{recurso.nombre}</div>
+                                <div className="text-[10px] text-slate-500">{recurso.ubicacion} • {recurso.capacidad}</div>
+                              </td>
 
-                        <div className="grid grid-cols-7 gap-1 text-center">
-                          {datosMesActual.celdasVacias.map((_, idx) => <div key={idx} className="h-8"></div>)}
-                          {datosMesActual.celdasDias.map((dia) => {
-                            const mesStr = String(viewMonth + 1).padStart(2, '0');
-                            const diaStr = String(dia).padStart(2, '0');
-                            const fechaBucle = `${viewYear}-${mesStr}-${diaStr}`;
-                            const esSeleccionado = fechaBucle === fechaSeleccionada;
-                            
+                              {TRAMOS_HORARIOS.map(tramo => {
+                                const reserva = reservas.find(
+                                  r => r.fecha === fechaSeleccionada && 
+                                       r.recursoId === recurso.id && 
+                                       r.tramoId === tramo.id
+                                );
+
+                                return (
+                                  <td key={tramo.id} className="p-1.5 text-center border-l border-slate-200 vertical-top">
+                                    {reserva ? (
+                                      <div className="bg-indigo-50 border border-indigo-200 rounded p-1.5 text-[10px] text-indigo-900 shadow-sm">
+                                        <div className="font-bold truncate">{reserva.usuarioNombre}</div>
+                                        <div className="text-indigo-700">{reserva.grupo}</div>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={() => {
+                                          setReservaForm(prev => ({ ...prev, recursoId: recurso.id, tramoId: tramo.id }));
+                                          setModalAbierto(true);
+                                        }}
+                                        className="w-full h-12 rounded border border-dashed border-slate-200 text-slate-400 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/50 transition flex items-center justify-center text-[10px]"
+                                      >
+                                        + Reservar
+                                      </button>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* VISTA 2: MIS RESERVAS */}
+            {tabActiva === 'mis_reservas' && (
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <h2 className="text-base font-bold text-slate-800 mb-4">Mis Reservas Activas</h2>
+                {reservas.filter(r => r.usuarioEmail === usuario.email).length === 0 ? (
+                  <p className="text-xs text-slate-500 italic">No tienes ninguna reserva registrada actualmente.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-200 font-bold text-slate-500">
+                          <th className="p-2">Fecha</th>
+                          <th className="p-2">Recurso</th>
+                          <th className="p-2">Tramo Horario</th>
+                          <th className="p-2">Grupo / Materia</th>
+                          <th className="p-2">Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {reservas
+                          .filter(r => r.usuarioEmail === usuario.email)
+                          .map(r => {
+                            const rec = RECURSOS_INICIALES.find(x => x.id === r.recursoId);
+                            const tr = TRAMOS_HORARIOS.find(x => x.id === r.tramoId);
                             return (
-                              <button
-                                key={dia}
-                                onClick={() => seleccionarDiaCalendario(dia)}
-                                className={`h-8 flex items-center justify-center rounded-xl text-xs transition-all ${
-                                  esSeleccionado ? 'bg-indigo-600 text-white font-bold' : 'hover:bg-indigo-50 text-slate-800'
-                                }`}
-                              >
-                                {dia}
-                              </button>
+                              <tr key={r.id}>
+                                <td className="p-2 font-semibold text-slate-700">{r.fecha}</td>
+                                <td className="p-2">{rec ? rec.nombre : r.recursoId}</td>
+                                <td className="p-2">{tr ? `${tr.nombre} (${tr.hora})` : r.tramoId}</td>
+                                <td className="p-2">{r.grupo} - {r.materia}</td>
+                                <td className="p-2">
+                                  <button
+                                    onClick={() => handleEliminarReserva(r.id)}
+                                    className="text-red-600 hover:text-red-800 font-medium text-[11px]"
+                                  >
+                                    Cancelar
+                                  </button>
+                                </td>
+                              </tr>
                             );
                           })}
-                        </div>
-                      </div>
-
-                      <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden col-span-1 lg:col-span-3 p-4">
-                        <p className="text-xs text-slate-500 font-semibold mb-3">Horarios e Inventario para la jornada:</p>
-                        <div className="space-y-3">
-                          {PERIODOS.map((periodo) => (
-                            <div key={periodo.id} className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex justify-between items-center">
-                              <div>
-                                <p className="font-bold text-sm text-slate-800">{periodo.nombre}</p>
-                                <p className="text-xs text-slate-400 font-mono">{periodo.rango}</p>
-                              </div>
-                              {!periodo.esRecreo && (
-                                <button 
-                                  onClick={() => abrirModalReserva(periodo, RECURSOS.CARRO_1)}
-                                  className="px-3 py-1.5 bg-indigo-600 text-white font-bold rounded-xl text-xs"
-                                >
-                                  Reservar Recurso
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>
             )}
+
+            {/* VISTA 3: PANEL DE ADMINISTRACIÓN (SOLO JEFATURA) */}
+            {tabActiva === 'admin' && (
+              <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-6 space-y-6">
+                <div className="flex items-center justify-between border-b border-amber-100 pb-4">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-800 flex items-center space-x-2">
+                      <span>👑 Panel de Gestión de Jefatura de Estudios</span>
+                    </h2>
+                    <p className="text-xs text-slate-500">Control global e histórico de todas las reservas del IES Francés de Aranda</p>
+                  </div>
+                  <span className="bg-amber-100 text-amber-800 text-xs px-3 py-1 rounded-full font-bold">
+                    Acceso Restringido: jefatura@iesfrancesdearanda.es
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center">
+                    <span className="text-2xl font-bold text-indigo-900">{reservas.length}</span>
+                    <p className="text-xs text-slate-500 mt-1">Total Reservas Registradas</p>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center">
+                    <span className="text-2xl font-bold text-indigo-900">{RECURSOS_INICIALES.length}</span>
+                    <p className="text-xs text-slate-500 mt-1">Recursos Digitales Gestionados</p>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center">
+                    <span className="text-2xl font-bold text-indigo-900">
+                      {new Set(reservas.map(r => r.usuarioEmail)).size}
+                    </span>
+                    <p className="text-xs text-slate-500 mt-1">Profesores Activos</p>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">
+                    Todas las reservas activas en el centro
+                  </h3>
+                  <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                        <tr>
+                          <th className="p-3">Fecha</th>
+                          <th className="p-3">Profesor/a</th>
+                          <th className="p-3">Recurso</th>
+                          <th className="p-3">Tramo</th>
+                          <th className="p-3">Grupo</th>
+                          <th className="p-3">Acciones Admin</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {reservas.map(r => {
+                          const rec = RECURSOS_INICIALES.find(x => x.id === r.recursoId);
+                          const tr = TRAMOS_HORARIOS.find(x => x.id === r.tramoId);
+                          return (
+                            <tr key={r.id} className="hover:bg-slate-50">
+                              <td className="p-3 font-medium">{r.fecha}</td>
+                              <td className="p-3">
+                                <div className="font-semibold">{r.usuarioNombre}</div>
+                                <div className="text-[10px] text-slate-400">{r.usuarioEmail}</div>
+                              </td>
+                              <td className="p-3 font-semibold text-indigo-700">{rec ? rec.nombre : r.recursoId}</td>
+                              <td className="p-3">{tr ? tr.nombre : r.tramoId}</td>
+                              <td className="p-3">{r.grupo}</td>
+                              <td className="p-3">
+                                <button
+                                  onClick={() => handleEliminarReserva(r.id)}
+                                  className="bg-red-50 text-red-600 hover:bg-red-100 px-2 py-1 rounded text-[11px] font-semibold border border-red-200"
+                                >
+                                  Liberar Espacio
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
           </main>
 
-          <footer className="bg-slate-900 text-slate-400 py-5 px-4 text-center text-[10px] mt-12">
-            © 2026-2027 IES Francés de Aranda. Todos los derechos reservados.
-          </footer>
-
-          {showReservaModal && modalPeriodo && (
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-              <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 space-y-4">
-                <h3 className="text-base font-bold text-slate-900">Nueva Reserva</h3>
-                <form onSubmit={handleCrearOEditarReserva} className="space-y-3">
+          {/* Modal para Crear Reserva */}
+          {modalAbierto && (
+            <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 border border-slate-200">
+                <h3 className="text-base font-bold text-slate-800 mb-4">Reservar Recurso Digital</h3>
+                
+                <form onSubmit={handleCrearReserva} className="space-y-4 text-xs">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Materia</label>
+                    <label className="block font-semibold text-slate-600 mb-1">Fecha</label>
                     <input 
-                      type="text" 
-                      required 
-                      value={modalMateria} 
-                      onChange={(e) => setModalMateria(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs"
+                      type="date"
+                      value={fechaSeleccionada}
+                      onChange={(e) => setFechaSeleccionada(e.target.value)}
+                      className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
-                  <div className="flex space-x-2 pt-2">
-                    <button 
-                      type="button" 
-                      onClick={() => setShowReservaModal(false)}
-                      className="w-1/2 py-2 border rounded-xl text-xs font-bold"
+
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1">Recurso Solicitado</label>
+                    <select
+                      value={reservaForm.recursoId}
+                      onChange={(e) => setReservaForm({ ...reservaForm, recursoId: e.target.value })}
+                      className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500"
+                    >
+                      {RECURSOS_INICIALES.map(r => (
+                        <option key={r.id} value={r.id}>{r.nombre} ({r.ubicacion})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1">Tramo Horario</label>
+                    <select
+                      value={reservaForm.tramoId}
+                      onChange={(e) => setReservaForm({ ...reservaForm, tramoId: e.target.value })}
+                      className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500"
+                    >
+                      {TRAMOS_HORARIOS.map(t => (
+                        <option key={t.id} value={t.id}>{t.nombre} - {t.hora}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1">Grupo / Curso</label>
+                    <input 
+                      type="text"
+                      placeholder="Ej. 2º ESO A, 1º Bachillerato B"
+                      required
+                      value={reservaForm.grupo}
+                      onChange={(e) => setReservaForm({ ...reservaForm, grupo: e.target.value })}
+                      className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1">Materia / Observaciones</label>
+                    <input 
+                      type="text"
+                      placeholder="Ej. Examen online, Práctica de robótica"
+                      value={reservaForm.materia}
+                      onChange={(e) => setReservaForm({ ...reservaForm, materia: e.target.value })}
+                      className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  <div className="flex space-x-3 pt-4 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setModalAbierto(false)}
+                      className="w-1/2 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-semibold transition"
                     >
                       Cancelar
                     </button>
-                    <button 
-                      type="submit" 
-                      className="w-1/2 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold"
+                    <button
+                      type="submit"
+                      className="w-1/2 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-semibold transition shadow"
                     >
-                      Confirmar
+                      Confirmar Reserva
                     </button>
                   </div>
                 </form>
               </div>
             </div>
           )}
+
+          {/* Pie de página */}
+          <footer className="bg-slate-100 border-t border-slate-200 py-4 text-center text-xs text-slate-500">
+            IES Francés de Aranda • Sistema Institucional de Reserva de Recursos Digitales
+          </footer>
         </div>
       );
     }
