@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IES Francés de Aranda - Reserva de Recursos Digitales</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- Babel Standalone -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen">
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    // Configuración del correo administrador único
+    const ADMIN_EMAIL = 'jefatura@iesfrancesdearanda.es';
+
+    // Lista de Recursos disponibles en el centro
+    const RECURSOS_INICIALES = [
+      { id: 'aula_a03', nombre: 'Aula A.0.3 (Ordenadores)', tipo: 'aula', ubicacion: 'Planta Baja - Edificio Principal', capacidad: '30 puestos', icono: 'laptop' },
+      { id: 'aula_inf1', nombre: 'Aula Informática 1', tipo: 'aula', ubicacion: 'Planta 1 - Ala Este', capacidad: '28 puestos', icono: 'monitor' },
+      { id: 'aula_inf2', nombre: 'Aula Informática 2', tipo: 'aula', ubicacion: 'Planta 1 - Ala Oeste', capacidad: '26 puestos', icono: 'monitor' },
+      { id: 'carrito_a', nombre: 'Carrito Portátiles A (Chromebooks)', tipo: 'móvil', ubicacion: 'Departamento Tecnología', capacidad: '32 unidades', icono: 'hard-drive' },
+      { id: 'carrito_b', nombre: 'Carrito Portátiles B (Windows)', tipo: 'móvil', ubicacion: 'Biblioteca', capacidad: '25 unidades', icono: 'hard-drive' },
+      { id: 'proyector_act', nombre: 'Proyector & Audio Salón de Actos', tipo: 'audiovisual', ubicacion: 'Salón de Actos', capacidad: 'Gran aforo', icono: 'tv' }
+    ];
+
+    const TRAMOS_HORARIOS = [
+      { id: '1h', nombre: '1ª Hora', hora: '08:30 - 09:25' },
+      { id: '2h', nombre: '2ª Hora', hora: '09:25 - 10:20' },
+      { id: '3h', nombre: '3ª Hora', hora: '10:20 - 11:15' },
+      { id: 'rec', nombre: 'Recreo', hora: '11:15 - 11:45' },
+      { id: '4h', nombre: '4ª Hora', hora: '11:45 - 12:40' },
+      { id: '5h', nombre: '5ª Hora', hora: '12:40 - 13:35' },
+      { id: '6h', nombre: '6ª Hora', hora: '13:35 - 14:30' }
+    ];
+
+    // Cuentas de demostración
+    const CUENTAS_DEMO = [
+      { email: 'jefatura@iesfrancesdearanda.es', pass: 'jefatura2026', nombre: 'Jefatura de Estudios', rol: 'Administrador' },
+      { email: 'a.sanchez@iesfrancesdearanda.es', pass: 'tecnologia2026', nombre: 'Prof. Ana Sánchez', rol: 'Profesorado' },
+      { email: 'm.perez@iesfrancesdearanda.es', pass: 'mates2026', nombre: 'Prof. Manuel Pérez', rol: 'Profesorado' }
+    ];
+
+    // Reservas iniciales de muestra
+    const RESERVAS_INICIALES = [
+      {
+        id: 'res-1',
+        recursoId: 'aula_a03',
+        fecha: new Date().toISOString().split('T')[0],
+        tramoId: '2h',
+        usuarioEmail: 'a.sanchez@iesfrancesdearanda.es',
+        usuarioNombre: 'Prof. Ana Sánchez',
+        grupo: '3º ESO B',
+        materia: 'Tecnología y Digitalización',
+        observaciones: 'Sesión de programación con Scratch'
+      },
+      {
+        id: 'res-2',
+        recursoId: 'carrito_a',
+        fecha: new Date().toISOString().split('T')[0],
+        tramoId: '4h',
+        usuarioEmail: 'm.perez@iesfrancesdearanda.es',
+        usuarioNombre: 'Prof. Manuel Pérez',
+        grupo: '1º Bachillerato A',
+        materia: 'Matemáticas',
+        observaciones: 'Uso de GeoGebra'
+      }
+    ];
+
+    function App() {
+      // Estado de Autenticación
+      const [usuario, setUsuario] = useState(() => {
+        const saved = localStorage.getItem('ies_user');
+        return saved ? JSON.parse(saved) : null;
+      });
+      const [emailInput, setEmailInput] = useState('');
+      const [passwordInput, setPasswordInput] = useState('');
+      const [loginError, setLoginError] = useState('');
+
+      // Fecha Seleccionada y Vista
+      const [fechaSeleccionada, setFechaSeleccionada] = useState(new Date().toISOString().split('T')[0]);
+      const [mesCalendario, setMesCalendario] = useState(new Date());
+      const [tabActiva, setTabActiva] = useState('diario'); // 'diario', 'mis_reservas', 'admin'
+      
+      // Estado de Reservas y Recursos
+      const [reservas, setReservas] = useState(() => {
+        const saved = localStorage.getItem('ies_reservas');
+        return saved ? JSON.parse(saved) : RESERVAS_INICIALES;
+      });
+      const [filtroTipo, setFiltroTipo] = useState('todos');
+
+      // Estado Modal de Reserva
+      const [modalAbierto, setModalAbierto] = useState(false);
+      const [reservaForm, setReservaForm] = useState({
+        recursoId: 'aula_a03',
+        tramoId: '1h',
+        grupo: '',
+        materia: '',
+        observaciones: ''
+      });
+      const [mensajeExito, setMensajeExito] = useState('');
+
+      useEffect(() => {
+        localStorage.setItem('ies_reservas', JSON.stringify(reservas));
+      }, [reservas]);
+
+      // Lógica de Validación Estricta de Admin
+      const esAdmin = useMemo(() => {
+        if (!usuario || !usuario.email) return false;
+        return usuario.email.trim().toLowerCase() === ADMIN_EMAIL.trim().toLowerCase();
+      }, [usuario]);
+
+      // Manejo del Login
+      const handleLogin = (e) => {
+        e.preventDefault();
+        const emailLimpio = emailInput.trim().toLowerCase();
+        
+        if (!emailLimpio || !passwordInput) {
+          setLoginError('Por favor, introduce el correo corporativo y la contraseña.');
+          return;
+        }
+
+        if (!emailLimpio.endsWith('@iesfrancesdearanda.es')) {
+          setLoginError('El correo debe pertenecer al dominio @iesfrancesdearanda.es');
+          return;
+        }
+
+        // Restricción Estricta de Rol:
+        // Solo jefatura@iesfrancesdearanda.es tiene rol 'admin'
+        const rolAsignado = (emailLimpio === ADMIN_EMAIL.toLowerCase()) ? 'admin' : 'user';
+        const nombreMostrar = emailLimpio === ADMIN_EMAIL.toLowerCase() 
+          ? 'Jefatura de Estudios' 
+          : emailLimpio.split('@')[0].replace('.', ' ').toUpperCase();
+
+        const usuarioSesion = {
+          email: emailLimpio,
+          nombre: nombreMostrar,
+          rol: rolAsignado
+        };
+
+        setUsuario(usuarioSesion);
+        localStorage.setItem('ies_user', JSON.stringify(usuarioSesion));
+        setLoginError('');
+        setEmailInput('');
+        setPasswordInput('');
+      };
+
+      const handleCargarDemo = (cuenta) => {
+        setEmailInput(cuenta.email);
+        setPasswordInput(cuenta.pass);
+      };
+
+      const handleLogout = () => {
+        setUsuario(null);
+        localStorage.removeItem('ies_user');
+      };
+
+      // Calendario Auxiliares
+      const diasDelMes = useMemo(() => {
+        const year = mesCalendario.getFullYear();
+        const month = mesCalendario.getMonth();
+        const primerDia = new Date(year, month, 1);
+        const ultimoDia = new Date(year, month + 1, 0);
+        
+        const dias = [];
+        const diaSemanaInicio = primerDia.getDay() === 0 ? 6 : primerDia.getDay() - 1; // Lunes = 0
+
+        for (let i = 0; i < diaSemanaInicio; i++) {
+          dias.push(null);
+        }
+
+        for (let d = 1; d <= ultimoDia.getDate(); d++) {
+          const f = new Date(year, month, d);
+          const fechaStr = f.toISOString().split('T')[0];
+          dias.push({
+            diaNum: d,
+            fechaStr: fechaStr,
+            esFinSemana: f.getDay() === 0 || f.getDay() === 6
+          });
+        }
+        return dias;
+      }, [mesCalendario]);
+
+      // Conteo de reservas por fecha
+      const mapaConteoReservas = useMemo(() => {
+        const map = {};
+        reservas.forEach(r => {
+          map[r.fecha] = (map[r.fecha] || 0) + 1;
+        });
+        return map;
+      }, [reservas]);
+
+      // Guardar Reserva
+      const handleCrearReserva = (e) => {
+        e.preventDefault();
+        if (!usuario) return;
+
+        // Comprobar disponibilidad
+        const ocupado = reservas.some(
+          r => r.fecha === fechaSeleccionada && 
+               r.recursoId === reservaForm.recursoId && 
+               r.tramoId === reservaForm.tramoId
+        );
+
+        if (ocupado) {
+          alert('El recurso ya se encuentra reservado en esta fecha y tramo horario.');
+          return;
+        }
+
+        const nuevaReserva = {
+          id: 'res-' + Date.now(),
+          recursoId: reservaForm.recursoId,
+          fecha: fechaSeleccionada,
+          tramoId: reservaForm.tramoId,
+          usuarioEmail: usuario.email,
+          usuarioNombre: usuario.nombre,
+          grupo: reservaForm.grupo || 'General',
+          materia: reservaForm.materia || 'Actividad Docente',
+          observaciones: reservaForm.observaciones || ''
+        };
+
+        setReservas([...reservas, nuevaReserva]);
+        setModalAbierto(false);
+        setMensajeExito('¡Reserva realizada con éxito!');
+        setTimeout(() => setMensajeExito(''), 4000);
+      };
+
+      const handleEliminarReserva = (id) => {
+        if (confirm('¿Estás seguro de cancelar esta reserva?')) {
+          setReservas(reservas.filter(r => r.id !== id));
+        }
+      };
+
+      // Si no ha iniciado sesión, mostrar pantalla de Login
+      if (!usuario) {
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
+            <div className="max-w-md w-full bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+              <div className="bg-indigo-900 p-6 text-white text-center">
+                <div className="w-16 h-16 bg-indigo-700 text-indigo-200 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-2xl shadow">
+                  IES
+                </div>
+                <h1 className="text-xl font-bold">IES Francés de Aranda</h1>
+                <p className="text-xs text-indigo-200 mt-1">Gestión y Reserva de Recursos Digitales</p>
+              </div>
+
+              <form onSubmit={handleLogin} className="p-6 space-y-4">
+                <h2 className="text-lg font-semibold text-slate-800 text-center mb-2">Acceso Corporativo</h2>
+                
+                {loginError && (
+                  <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-3 text-xs rounded">
+                    {loginError}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Correo Electrónico Corporativo</label>
+                  <input 
+                    type="email" 
+                    required
+                    placeholder="ejemplo@iesfrancesdearanda.es"
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Contraseña Corporativa</label>
+                  <input 
+                    type="password" 
+                    required
+                    placeholder="••••••••"
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <button 
+                  type="submit"
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg text-sm transition shadow"
+                >
+                  Iniciar Sesión
+                </button>
+
+                {/* Acceso Rápido Demo */}
+                <div className="mt-6 border-t border-slate-200 pt-4">
+                  <p className="text-xs text-slate-500 font-medium mb-2">Acceso rápido para demostración:</p>
+                  <div className="space-y-2">
+                    {CUENTAS_DEMO.map((cuenta, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleCargarDemo(cuenta)}
+                        className="w-full text-left p-2 rounded border border-slate-200 hover:bg-slate-50 flex justify-between items-center text-xs transition"
+                      >
+                        <div>
+                          <span className="font-semibold text-slate-700 block">{cuenta.nombre}</span>
+                          <span className="text-slate-500">{cuenta.email}</span>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${cuenta.rol === 'Administrador' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
+                          {cuenta.rol}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      }
+
+      // Aplicación Principal cuando hay usuario autenticado
+      return (
+        <div className="min-h-screen flex flex-col">
+          {/* Header Superior */}
+          <header className="bg-indigo-900 text-white shadow-md sticky top-0 z-30">
+            <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-indigo-700 rounded-lg flex items-center justify-center font-bold text-lg border border-indigo-500">
+                  FA
+                </div>
+                <div>
+                  <h1 className="font-bold text-base leading-tight">IES Francés de Aranda</h1>
+                  <p className="text-xs text-indigo-200">Reserva de Recursos Digitales</p>
+                </div>
+              </div>
+
+              {/* Info de usuario y botón salir */}
+              <div className="flex items-center space-x-4">
+                <div className="text-right hidden sm:block">
+                  <p className="text-xs font-semibold">{usuario.nombre}</p>
+                  <div className="flex items-center justify-end space-x-1">
+                    <span className={`inline-block w-2 h-2 rounded-full ${esAdmin ? 'bg-amber-400' : 'bg-emerald-400'}`}></span>
+                    <span className="text-[11px] text-indigo-200 font-mono">
+                      {esAdmin ? 'Rol: Administrador (Jefatura)' : 'Rol: Profesorado'}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="bg-indigo-800 hover:bg-indigo-700 text-indigo-200 hover:text-white px-3 py-1.5 rounded-lg text-xs font-medium border border-indigo-700 transition"
+                >
+                  Cerrar Sesión
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {/* Navegación por pestañas */}
+          <div className="bg-white border-b border-slate-200">
+            <div className="max-w-7xl mx-auto px-4 flex space-x-6">
+              <button
+                onClick={() => setTabActiva('diario')}
+                className={`py-3 text-xs font-semibold border-b-2 transition ${tabActiva === 'diario' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+              >
+                📅 Cuadro Horario de Recursos
+              </button>
+              <button
+                onClick={() => setTabActiva('mis_reservas')}
+                className={`py-3 text-xs font-semibold border-b-2 transition ${tabActiva === 'mis_reservas' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+              >
+                📋 Mis Reservas
+              </button>
+              {esAdmin && (
+                <button
+                  onClick={() => setTabActiva('admin')}
+                  className={`py-3 text-xs font-semibold border-b-2 transition flex items-center space-x-1 ${tabActiva === 'admin' ? 'border-amber-500 text-amber-700' : 'border-transparent text-slate-500 hover:text-amber-600'}`}
+                >
+                  <span>👑 Panel de Gestión (Jefatura)</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Banner de alerta de éxito */}
+          {mensajeExito && (
+            <div className="bg-emerald-600 text-white text-center py-2 text-xs font-medium shadow">
+              {mensajeExito}
+            </div>
+          )}
+
+          {/* Contenido Principal */}
+          <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6">
+            
+            {/* VISTA 1: CUADRO DIARIO & CALENDARIO MENSUAL */}
+            {tabActiva === 'diario' && (
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                
+                {/* Lateral Izquierdo: CALENDARIO MENSUAL VISIBLE */}
+                <div className="lg:col-span-1 space-y-6">
+                  <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600">Calendario Mensual</h3>
+                      <div className="flex space-x-1">
+                        <button 
+                          onClick={() => setMesCalendario(new Date(mesCalendario.getFullYear(), mesCalendario.getMonth() - 1, 1))}
+                          className="p-1 hover:bg-slate-100 rounded text-slate-600 font-bold"
+                        >&lt;</button>
+                        <button 
+                          onClick={() => setMesCalendario(new Date(mesCalendario.getFullYear(), mesCalendario.getMonth() + 1, 1))}
+                          className="p-1 hover:bg-slate-100 rounded text-slate-600 font-bold"
+                        >&gt;</button>
+                      </div>
+                    </div>
+
+                    <div className="text-sm font-bold text-slate-800 capitalize mb-3 text-center">
+                      {mesCalendario.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
+                    </div>
+
+                    {/* Días de la semana */}
+                    <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-400 mb-1">
+                      <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span>
+                    </div>
+
+                    {/* Rejilla de días */}
+                    <div className="grid grid-cols-7 gap-1 text-xs">
+                      {diasDelMes.map((d, i) => {
+                        if (!d) return <div key={`empty-${i}`} className="h-8"></div>;
+                        const esHoy = d.fechaStr === fechaSeleccionada;
+                        const numReservas = mapaConteoReservas[d.fechaStr] || 0;
+
+                        return (
+                          <button
+                            key={d.fechaStr}
+                            disabled={d.esFinSemana}
+                            onClick={() => setFechaSeleccionada(d.fechaStr)}
+                            className={`h-8 rounded-lg relative flex flex-col items-center justify-center transition text-xs font-medium ${
+                              d.esFinSemana ? 'text-slate-300 bg-slate-50 cursor-not-allowed' :
+                              esHoy ? 'bg-indigo-600 text-white font-bold shadow' :
+                              'hover:bg-indigo-50 text-slate-700 bg-slate-50'
+                            }`}
+                          >
+                            <span>{d.diaNum}</span>
+                            {numReservas > 0 && !d.esFinSemana && (
+                              <span className={`w-1.5 h-1.5 rounded-full ${esHoy ? 'bg-amber-300' : 'bg-indigo-500'}`}></span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[10px] text-slate-400 text-center mt-3">Haz clic en un día laborable para ver el horario</p>
+                  </div>
+
+                  {/* Acceso directo Nueva Reserva */}
+                  <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+                    <h4 className="text-xs font-bold text-indigo-900 mb-1">¿Necesitas reservar?</h4>
+                    <p className="text-xs text-indigo-700 mb-3">Puedes solicitar cualquier recurso informático disponible para tus clases.</p>
+                    <button
+                      onClick={() => setModalAbierto(true)}
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg text-xs font-semibold shadow transition"
+                    >
+                      + Nueva Reserva
+                    </button>
+                  </div>
+                </div>
+
+                {/* Área Principal: TABLA DE DISPONIBILIDAD DIARIA */}
+                <div className="lg:col-span-3 space-y-4">
+                  <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
+                    <div>
+                      <h2 className="text-base font-bold text-slate-800">
+                        Ocupación del día: <span className="text-indigo-600">{new Date(fechaSeleccionada + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                      </h2>
+                      <p className="text-xs text-slate-500">Visualizando estado de aulas y carritos en cada tramo lectivo</p>
+                    </div>
+
+                    {/* Filtros */}
+                    <div className="flex space-x-2">
+                      <button 
+                        onClick={() => setFiltroTipo('todos')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${filtroTipo === 'todos' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                      >
+                        Todos
+                      </button>
+                      <button 
+                        onClick={() => setFiltroTipo('aula')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${filtroTipo === 'aula' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                      >
+                        Aulas de Informática
+                      </button>
+                      <button 
+                        onClick={() => setFiltroTipo('móvil')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${filtroTipo === 'móvil' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                      >
+                        Carritos Móviles
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Tabla Horaria */}
+                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto custom-scrollbar">
+                    <table className="w-full text-left border-collapse min-w-[700px]">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                          <th className="p-3 w-48">Recurso</th>
+                          {TRAMOS_HORARIOS.map(tramo => (
+                            <th key={tramo.id} className="p-2 text-center border-l border-slate-200">
+                              <div>{tramo.nombre}</div>
+                              <div className="text-[9px] text-slate-400 font-normal">{tramo.hora}</div>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 text-xs">
+                        {RECURSOS_INICIALES
+                          .filter(r => filtroTipo === 'todos' || r.tipo === filtroTipo)
+                          .map(recurso => (
+                            <tr key={recurso.id} className="hover:bg-slate-50/50">
+                              <td className="p-3 font-medium text-slate-800 bg-slate-50/30">
+                                <div className="font-semibold">{recurso.nombre}</div>
+                                <div className="text-[10px] text-slate-500">{recurso.ubicacion} • {recurso.capacidad}</div>
+                              </td>
+
+                              {TRAMOS_HORARIOS.map(tramo => {
+                                const reserva = reservas.find(
+                                  r => r.fecha === fechaSeleccionada && 
+                                       r.recursoId === recurso.id && 
+                                       r.tramoId === tramo.id
+                                );
+
+                                return (
+                                  <td key={tramo.id} className="p-1.5 text-center border-l border-slate-200 vertical-top">
+                                    {reserva ? (
+                                      <div className="bg-indigo-50 border border-indigo-200 rounded p-1.5 text-[10px] text-indigo-900 shadow-sm">
+                                        <div className="font-bold truncate">{reserva.usuarioNombre}</div>
+                                        <div className="text-indigo-700">{reserva.grupo}</div>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={() => {
+                                          setReservaForm(prev => ({ ...prev, recursoId: recurso.id, tramoId: tramo.id }));
+                                          setModalAbierto(true);
+                                        }}
+                                        className="w-full h-12 rounded border border-dashed border-slate-200 text-slate-400 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/50 transition flex items-center justify-center text-[10px]"
+                                      >
+                                        + Reservar
+                                      </button>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* VISTA 2: MIS RESERVAS */}
+            {tabActiva === 'mis_reservas' && (
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <h2 className="text-base font-bold text-slate-800 mb-4">Mis Reservas Activas</h2>
+                {reservas.filter(r => r.usuarioEmail === usuario.email).length === 0 ? (
+                  <p className="text-xs text-slate-500 italic">No tienes ninguna reserva registrada actualmente.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-200 font-bold text-slate-500">
+                          <th className="p-2">Fecha</th>
+                          <th className="p-2">Recurso</th>
+                          <th className="p-2">Tramo Horario</th>
+                          <th className="p-2">Grupo / Materia</th>
+                          <th className="p-2">Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {reservas
+                          .filter(r => r.usuarioEmail === usuario.email)
+                          .map(r => {
+                            const rec = RECURSOS_INICIALES.find(x => x.id === r.recursoId);
+                            const tr = TRAMOS_HORARIOS.find(x => x.id === r.tramoId);
+                            return (
+                              <tr key={r.id}>
+                                <td className="p-2 font-semibold text-slate-700">{r.fecha}</td>
+                                <td className="p-2">{rec ? rec.nombre : r.recursoId}</td>
+                                <td className="p-2">{tr ? `${tr.nombre} (${tr.hora})` : r.tramoId}</td>
+                                <td className="p-2">{r.grupo} - {r.materia}</td>
+                                <td className="p-2">
+                                  <button
+                                    onClick={() => handleEliminarReserva(r.id)}
+                                    className="text-red-600 hover:text-red-800 font-medium text-[11px]"
+                                  >
+                                    Cancelar
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* VISTA 3: PANEL DE ADMINISTRACIÓN (SOLO JEFATURA) */}
+            {tabActiva === 'admin' && (
+              <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-6 space-y-6">
+                <div className="flex items-center justify-between border-b border-amber-100 pb-4">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-800 flex items-center space-x-2">
+                      <span>👑 Panel de Gestión de Jefatura de Estudios</span>
+                    </h2>
+                    <p className="text-xs text-slate-500">Control global e histórico de todas las reservas del IES Francés de Aranda</p>
+                  </div>
+                  <span className="bg-amber-100 text-amber-800 text-xs px-3 py-1 rounded-full font-bold">
+                    Acceso Restringido: jefatura@iesfrancesdearanda.es
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center">
+                    <span className="text-2xl font-bold text-indigo-900">{reservas.length}</span>
+                    <p className="text-xs text-slate-500 mt-1">Total Reservas Registradas</p>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center">
+                    <span className="text-2xl font-bold text-indigo-900">{RECURSOS_INICIALES.length}</span>
+                    <p className="text-xs text-slate-500 mt-1">Recursos Digitales Gestionados</p>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center">
+                    <span className="text-2xl font-bold text-indigo-900">
+                      {new Set(reservas.map(r => r.usuarioEmail)).size}
+                    </span>
+                    <p className="text-xs text-slate-500 mt-1">Profesores Activos</p>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">
+                    Todas las reservas activas en el centro
+                  </h3>
+                  <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                        <tr>
+                          <th className="p-3">Fecha</th>
+                          <th className="p-3">Profesor/a</th>
+                          <th className="p-3">Recurso</th>
+                          <th className="p-3">Tramo</th>
+                          <th className="p-3">Grupo</th>
+                          <th className="p-3">Acciones Admin</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {reservas.map(r => {
+                          const rec = RECURSOS_INICIALES.find(x => x.id === r.recursoId);
+                          const tr = TRAMOS_HORARIOS.find(x => x.id === r.tramoId);
+                          return (
+                            <tr key={r.id} className="hover:bg-slate-50">
+                              <td className="p-3 font-medium">{r.fecha}</td>
+                              <td className="p-3">
+                                <div className="font-semibold">{r.usuarioNombre}</div>
+                                <div className="text-[10px] text-slate-400">{r.usuarioEmail}</div>
+                              </td>
+                              <td className="p-3 font-semibold text-indigo-700">{rec ? rec.nombre : r.recursoId}</td>
+                              <td className="p-3">{tr ? tr.nombre : r.tramoId}</td>
+                              <td className="p-3">{r.grupo}</td>
+                              <td className="p-3">
+                                <button
+                                  onClick={() => handleEliminarReserva(r.id)}
+                                  className="bg-red-50 text-red-600 hover:bg-red-100 px-2 py-1 rounded text-[11px] font-semibold border border-red-200"
+                                >
+                                  Liberar Espacio
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </main>
+
+          {/* Modal para Crear Reserva */}
+          {modalAbierto && (
+            <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 border border-slate-200">
+                <h3 className="text-base font-bold text-slate-800 mb-4">Reservar Recurso Digital</h3>
+                
+                <form onSubmit={handleCrearReserva} className="space-y-4 text-xs">
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1">Fecha</label>
+                    <input 
+                      type="date"
+                      value={fechaSeleccionada}
+                      onChange={(e) => setFechaSeleccionada(e.target.value)}
+                      className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1">Recurso Solicitado</label>
+                    <select
+                      value={reservaForm.recursoId}
+                      onChange={(e) => setReservaForm({ ...reservaForm, recursoId: e.target.value })}
+                      className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500"
+                    >
+                      {RECURSOS_INICIALES.map(r => (
+                        <option key={r.id} value={r.id}>{r.nombre} ({r.ubicacion})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1">Tramo Horario</label>
+                    <select
+                      value={reservaForm.tramoId}
+                      onChange={(e) => setReservaForm({ ...reservaForm, tramoId: e.target.value })}
+                      className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500"
+                    >
+                      {TRAMOS_HORARIOS.map(t => (
+                        <option key={t.id} value={t.id}>{t.nombre} - {t.hora}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1">Grupo / Curso</label>
+                    <input 
+                      type="text"
+                      placeholder="Ej. 2º ESO A, 1º Bachillerato B"
+                      required
+                      value={reservaForm.grupo}
+                      onChange={(e) => setReservaForm({ ...reservaForm, grupo: e.target.value })}
+                      className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1">Materia / Observaciones</label>
+                    <input 
+                      type="text"
+                      placeholder="Ej. Examen online, Práctica de robótica"
+                      value={reservaForm.materia}
+                      onChange={(e) => setReservaForm({ ...reservaForm, materia: e.target.value })}
+                      className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  <div className="flex space-x-3 pt-4 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setModalAbierto(false)}
+                      className="w-1/2 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-semibold transition"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      className="w-1/2 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-semibold transition shadow"
+                    >
+                      Confirmar Reserva
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Pie de página */}
+          <footer className="bg-slate-100 border-t border-slate-200 py-4 text-center text-xs text-slate-500">
+            IES Francés de Aranda • Sistema Institucional de Reserva de Recursos Digitales
+          </footer>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
