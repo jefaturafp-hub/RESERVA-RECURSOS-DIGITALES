@@ -1,401 +1,387 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Calendar as CalendarIcon, 
-  BookOpen, 
-  Laptop, 
-  Monitor, 
-  User, 
-  Shield, 
-  Clock, 
-  CheckCircle, 
-  AlertTriangle, 
-  Trash2, 
-  Plus, 
-  ChevronLeft, 
-  ChevronRight, 
-  LogOut, 
-  BarChart3, 
-  Sliders, 
-  Download, 
-  Filter, 
-  Info,
-  CalendarDays,
-  FileText,
-  Users,
-  Layers,
-  Sparkles,
-  Edit3,
-  Bookmark,
-  Lock,
-  Eye,
-  EyeOff
-} from 'lucide-react';
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Reserva de Recursos Digitales - IES Francés de Aranda</title>
 
-const DOMAIN = "@iesfrancesdearanda.es";
-const TOTAL_PORTATILES_POR_CARRO = 22;
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
 
-const PERIODOS = [
-  { id: 1, nombre: "1ª Hora", rango: "8:30 - 9:20" },
-  { id: 2, nombre: "2ª Hora", rango: "9:25 - 10:15" },
-  { id: 3, nombre: "3ª Hora", rango: "10:20 - 11:10" },
-  { id: 'recreo', nombre: "Recreo", rango: "11:10 - 11:40", esRecreo: true },
-  { id: 4, nombre: "4ª Hora", rango: "11:40 - 12:30" },
-  { id: 5, nombre: "5ª Hora", rango: "12:35 - 13:25" },
-  { id: 6, nombre: "6ª Hora", rango: "13:30 - 14:20" }
-];
+  <!-- React y React DOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 
-const RECURSOS = {
-  CARRO_1: { id: "carro_1", nombre: "Carro 1ª Planta", tipo: "laptop", max: TOTAL_PORTATILES_POR_CARRO, ubicacion: "Planta 1" },
-  CARRO_2: { id: "carro_2", nombre: "Carro 2ª Planta", tipo: "laptop", max: TOTAL_PORTATILES_POR_CARRO, ubicacion: "Planta 2" },
-  CARRO_UM: { id: "carro_um", nombre: "Carro Usos Múltiples", tipo: "laptop", max: TOTAL_PORTATILES_POR_CARRO, ubicacion: "Planta Baja" },
-  AULA_INF2: { id: "aula_inf2", nombre: "Aula Informática 2", tipo: "aula", max: 1, ubicacion: "Planta 1" },
-  AULA_A03: { id: "aula_a03", nombre: "Aula A.0.3", tipo: "aula", max: 1, ubicacion: "Planta Baja" }, 
-  NORMATIVA: { id: "normativa", nombre: "Uso por Normativa (Fijo)", tipo: "normativa", max: 999, ubicacion: "Aula propia/Taller" }
-};
+  <!-- Babel para compilar JSX en el navegador -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-const NIVELES = ["1º ESO", "2º ESO", "3º ESO", "4º ESO", "Bachillerato/Otros"];
-const DIAS_SEMANA_NOMBRES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
-const MESES_NOMBRES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800 antialiased">
+  <div id="root"></div>
 
-const formatearFechaBonita = (fechaStr) => {
-  if (!fechaStr) return "";
-  const parts = fechaStr.split('-');
-  if (parts.length !== 3) return fechaStr;
-  const date = new Date(parts[0], parts[1] - 1, parts[2]);
-  const opciones = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-  return date.toLocaleDateString('es-ES', opciones);
-};
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
 
-const DEMO_USERS = [
-  { email: "ana.sanchez" + DOMAIN, nombre: "Ana Sánchez (Tecnología)", rol: "docente", contrasenia: "tecnologia2026" },
-  { email: "carlos.gomez" + DOMAIN, nombre: "Carlos Gómez (Matemáticas)", rol: "docente", contrasenia: "mates2026" },
-  { email: "marta.aragon" + DOMAIN, nombre: "Marta de la Fuente (Admin/TIC)", rol: "admin", contrasenia: "admin2026" }
-];
+    // Componentes de Lucide Iconos para React
+    const Laptop = () => <i data-lucide="laptop" className="h-6 w-6 text-amber-400"></i>;
+    const Monitor = () => <i data-lucide="monitor" className="h-6 w-6"></i>;
+    const LogOut = () => <i data-lucide="log-out" className="h-4 w-4"></i>;
+    const CheckCircle = () => <i data-lucide="check-circle" className="h-6 w-6 text-emerald-400"></i>;
+    const AlertTriangle = () => <i data-lucide="alert-triangle" className="h-4 w-4 flex-shrink-0"></i>;
+    const Lock = () => <i data-lucide="lock" className="h-3.5 w-3.5"></i>;
+    const Eye = () => <i data-lucide="eye" className="h-4 w-4"></i>;
+    const EyeOff = () => <i data-lucide="eye-off" className="h-4 w-4"></i>;
 
-const RESERVAS_INICIALES = [
-  { id: "res-1", fecha: "2026-09-07", periodoId: 1, recursoId: "carro_1", cantidad: 15, materia: "Taller de Robótica", nivel: "3º ESO", grupo: "A", docenteEmail: "ana.sanchez@iesfrancesdearanda.es", docenteNombre: "Ana Sánchez (Tecnología)", creadoEn: "2026-09-05T09:00:00.000Z" },
-  { id: "res-2", fecha: "2026-09-07", periodoId: 1, recursoId: "carro_1", cantidad: 7, materia: "Tecnología y Dig.", nivel: "1º ESO", grupo: "B", docenteEmail: "carlos.gomez@iesfrancesdearanda.es", docenteNombre: "Carlos Gómez (Matemáticas)", creadoEn: "2026-09-05T10:15:00.000Z" },
-  { id: "res-norm-1", fecha: "2026-09-07", periodoId: 2, recursoId: "normativa", cantidad: 1, materia: "Tecnología y Digitalización", nivel: "2º ESO", grupo: "A", docenteEmail: "ana.sanchez@iesfrancesdearanda.es", docenteNombre: "Ana Sánchez (Tecnología)", creadoEn: "2026-09-01T08:00:00.000Z", esNormativa: true },
-  { id: "res-3", fecha: "2026-09-08", periodoId: 2, recursoId: "aula_inf2", cantidad: 1, materia: "Pensamiento Computacional", nivel: "2º ESO", grupo: "C", docenteEmail: "ana.sanchez@iesfrancesdearanda.es", docenteNombre: "Ana Sánchez (Tecnología)", creadoEn: "2026-09-05T11:00:00.000Z" }
-];
+    const DOMAIN = "@iesfrancesdearanda.es";
+    const TOTAL_PORTATILES_POR_CARRO = 22;
 
-export default function App() {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginName, setLoginName] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-  const [loginRole, setLoginRole] = useState("docente");
-  const [showPassword, setShowPassword] = useState(false);
-  const [loginError, setLoginError] = useState("");
+    const PERIODOS = [
+      { id: 1, nombre: "1ª Hora", rango: "8:30 - 9:20" },
+      { id: 2, nombre: "2ª Hora", rango: "9:25 - 10:15" },
+      { id: 3, nombre: "3ª Hora", rango: "10:20 - 11:10" },
+      { id: 'recreo', nombre: "Recreo", rango: "11:10 - 11:40", esRecreo: true },
+      { id: 4, nombre: "4ª Hora", rango: "11:40 - 12:30" },
+      { id: 5, nombre: "5ª Hora", rango: "12:35 - 13:25" },
+      { id: 6, nombre: "6ª Hora", rango: "13:30 - 14:20" }
+    ];
 
-  const [fechaSeleccionada, setFechaSeleccionada] = useState("2026-09-07"); 
-  const [reservas, setReservas] = useState(RESERVAS_INICIALES);
-  
-  const [viewYear, setViewYear] = useState(2026);
-  const [viewMonth, setViewMonth] = useState(8);
-
-  const [showReservaModal, setShowReservaModal] = useState(false);
-  const [editingReservaId, setEditingReservaId] = useState(null); 
-  const [modalPeriodo, setModalPeriodo] = useState(null);
-  const [modalRecurso, setModalRecurso] = useState(null);
-  const [modalMateria, setModalMateria] = useState("");
-  const [modalNivel, setModalNivel] = useState("1º ESO");
-  const [modalGrupo, setModalGrupo] = useState("A");
-  const [modalCantidad, setModalCantidad] = useState(1);
-  const [modalEsNormativa, setModalEsNormativa] = useState(false);
-  const [modalError, setModalError] = useState("");
-
-  const [currentTab, setCurrentTab] = useState("calendar"); 
-  const [filtroRecurso, setFiltroRecurso] = useState("all");
-  const [toastMessage, setToastMessage] = useState(null);
-
-  useEffect(() => {
-    const savedReservas = localStorage.getItem('ies_reservas_recursos_v4_update');
-    if (savedReservas) {
-      setReservas(JSON.parse(savedReservas));
-    }
-  }, []);
-
-  const saveReservasData = (nuevasReservas) => {
-    setReservas(nuevasReservas);
-    localStorage.setItem('ies_reservas_recursos_v4_update', JSON.stringify(nuevasReservas));
-  };
-
-  const showToast = (message) => {
-    setToastMessage(message);
-    setTimeout(() => setToastMessage(null), 4000);
-  };
-
-  const handleDemoClick = (user) => {
-    setLoginEmail(user.email.replace(DOMAIN, ""));
-    setLoginName(user.nombre);
-    setLoginRole(user.rol);
-    setLoginPassword(user.contrasenia);
-    showToast(`Datos de ${user.nombre} cargados.`);
-  };
-
-  const handleCustomLogin = (e) => {
-    e.preventDefault();
-    setLoginError("");
-
-    if (!loginEmail.trim()) {
-      setLoginError("Introduce tu correo corporativo.");
-      return;
-    }
-    if (!loginPassword.trim()) {
-      setLoginError("Por favor, introduce tu contraseña corporativa.");
-      return;
-    }
-    if (loginPassword.length < 5) {
-      setLoginError("La contraseña debe tener al menos 5 caracteres.");
-      return;
-    }
-    
-    let emailCompleto = loginEmail.trim().toLowerCase();
-    if (!emailCompleto.endsWith(DOMAIN)) {
-      emailCompleto += DOMAIN;
-    }
-
-    // Verificar si coincide con algún usuario de demo para validar clave
-    const demoFound = DEMO_USERS.find(u => u.email === emailCompleto);
-    if (demoFound && demoFound.contrasenia !== loginPassword) {
-      setLoginError("Contraseña incorrecta para este usuario.");
-      return;
-    }
-
-    const nombreGenerado = loginName.trim() || emailCompleto.split('@')[0].replace('.', ' ').toUpperCase();
-
-    const newUser = {
-      email: emailCompleto,
-      nombre: nombreGenerado,
-      rol: loginRole
+    const RECURSOS = {
+      CARRO_1: { id: "carro_1", nombre: "Carro 1ª Planta", tipo: "laptop", max: TOTAL_PORTATILES_POR_CARRO, ubicacion: "Planta 1" },
+      CARRO_2: { id: "carro_2", nombre: "Carro 2ª Planta", tipo: "laptop", max: TOTAL_PORTATILES_POR_CARRO, ubicacion: "Planta 2" },
+      CARRO_UM: { id: "carro_um", nombre: "Carro Usos Múltiples", tipo: "laptop", max: TOTAL_PORTATILES_POR_CARRO, ubicacion: "Planta Baja" },
+      AULA_INF2: { id: "aula_inf2", nombre: "Aula Informática 2", tipo: "aula", max: 1, ubicacion: "Planta 1" },
+      AULA_A03: { id: "aula_a03", nombre: "Aula A.0.3", tipo: "aula", max: 1, ubicacion: "Planta Baja" }, 
+      NORMATIVA: { id: "normativa", nombre: "Uso por Normativa (Fijo)", tipo: "normativa", max: 999, ubicacion: "Aula propia/Taller" }
     };
 
-    setCurrentUser(newUser);
-    showToast(`Sesión iniciada como ${nombreGenerado}`);
-    setLoginPassword("");
-  };
+    const formatearFechaBonita = (fechaStr) => {
+      if (!fechaStr) return "";
+      const parts = fechaStr.split('-');
+      if (parts.length !== 3) return fechaStr;
+      const date = new Date(parts[0], parts[1] - 1, parts[2]);
+      const opciones = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+      return date.toLocaleDateString('es-ES', opciones);
+    };
 
-  const handleLogout = () => {
-    setCurrentUser(null);
-    setCurrentTab("calendar");
-    showToast("Sesión cerrada correctamente.");
-  };
+    const DEMO_USERS = [
+      { email: "ana.sanchez" + DOMAIN, nombre: "Ana Sánchez (Tecnología)", rol: "docente", contrasenia: "tecnologia2026" },
+      { email: "carlos.gomez" + DOMAIN, nombre: "Carlos Gómez (Matemáticas)", rol: "docente", contrasenia: "mates2026" },
+      { email: "marta.aragon" + DOMAIN, nombre: "Marta de la Fuente (Admin/TIC)", rol: "admin", contrasenia: "admin2026" }
+    ];
 
-  const getPortatilesDisponibles = (fecha, periodoId, recursoId) => {
-    const reservadoActualmente = reservas
-      .filter(r => r.fecha === fecha && r.periodoId === parseInt(periodoId) && r.recursoId === recursoId)
-      .filter(r => r.id !== editingReservaId)
-      .reduce((sum, r) => sum + r.cantidad, 0);
+    const RESERVAS_INICIALES = [
+      { id: "res-1", fecha: "2026-09-07", periodoId: 1, recursoId: "carro_1", cantidad: 15, materia: "Taller de Robótica", nivel: "3º ESO", grupo: "A", docenteEmail: "ana.sanchez@iesfrancesdearanda.es", docenteNombre: "Ana Sánchez (Tecnología)", creadoEn: "2026-09-05T09:00:00.000Z" },
+      { id: "res-2", fecha: "2026-09-07", periodoId: 1, recursoId: "carro_1", cantidad: 7, materia: "Tecnología y Dig.", nivel: "1º ESO", grupo: "B", docenteEmail: "carlos.gomez@iesfrancesdearanda.es", docenteNombre: "Carlos Gómez (Matemáticas)", creadoEn: "2026-09-05T10:15:00.000Z" },
+      { id: "res-norm-1", fecha: "2026-09-07", periodoId: 2, recursoId: "normativa", cantidad: 1, materia: "Tecnología y Digitalización", nivel: "2º ESO", grupo: "A", docenteEmail: "ana.sanchez@iesfrancesdearanda.es", docenteNombre: "Ana Sánchez (Tecnología)", creadoEn: "2026-09-01T08:00:00.000Z", esNormativa: true },
+      { id: "res-3", fecha: "2026-09-08", periodoId: 2, recursoId: "aula_inf2", cantidad: 1, materia: "Pensamiento Computacional", nivel: "2º ESO", grupo: "C", docenteEmail: "ana.sanchez@iesfrancesdearanda.es", docenteNombre: "Ana Sánchez (Tecnología)", creadoEn: "2026-09-05T11:00:00.000Z" }
+    ];
 
-    return Math.max(0, TOTAL_PORTATILES_POR_CARRO - reservadoActualmente);
-  };
+    function App() {
+      const [currentUser, setCurrentUser] = useState(null);
+      const [loginEmail, setLoginEmail] = useState("");
+      const [loginName, setLoginName] = useState("");
+      const [loginPassword, setLoginPassword] = useState("");
+      const [loginRole, setLoginRole] = useState("docente");
+      const [showPassword, setShowPassword] = useState(false);
+      const [loginError, setLoginError] = useState("");
 
-  return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800 antialiased font-medium">
-      {/* HEADER */}
-      <header className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-md sticky top-0 z-30 p-4">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center space-x-3">
-            <Laptop className="h-6 w-6 text-amber-400" />
-            <h1 className="text-lg font-bold">RESERVA DE RECURSOS DIGITALES</h1>
-          </div>
-          {currentUser && (
-            <div className="flex items-center gap-4">
-              <span className="text-xs bg-indigo-800 px-3 py-1 rounded-full">{currentUser.nombre}</span>
-              <button onClick={handleLogout} className="p-2 bg-slate-800 rounded-lg text-slate-300 hover:text-white">
-                <LogOut className="h-4 w-4" />
-              </button>
+      const [fechaSeleccionada, setFechaSeleccionada] = useState("2026-09-07"); 
+      const [reservas, setReservas] = useState(RESERVAS_INICIALES);
+      const [toastMessage, setToastMessage] = useState(null);
+
+      useEffect(() => {
+        const savedReservas = localStorage.getItem('ies_reservas_recursos_v4_update');
+        if (savedReservas) {
+          setReservas(JSON.parse(savedReservas));
+        }
+      }, []);
+
+      useEffect(() => {
+        if (window.lucide) {
+          window.lucide.createIcons();
+        }
+      });
+
+      const showToast = (message) => {
+        setToastMessage(message);
+        setTimeout(() => setToastMessage(null), 4000);
+      };
+
+      const handleDemoClick = (user) => {
+        setLoginEmail(user.email.replace(DOMAIN, ""));
+        setLoginName(user.nombre);
+        setLoginRole(user.rol);
+        setLoginPassword(user.contrasenia);
+        showToast(`Datos de ${user.nombre} cargados.`);
+      };
+
+      const handleCustomLogin = (e) => {
+        e.preventDefault();
+        setLoginError("");
+
+        if (!loginEmail.trim()) {
+          setLoginError("Introduce tu correo corporativo.");
+          return;
+        }
+        if (!loginPassword.trim()) {
+          setLoginError("Por favor, introduce tu contraseña corporativa.");
+          return;
+        }
+        if (loginPassword.length < 5) {
+          setLoginError("La contraseña debe tener al menos 5 caracteres.");
+          return;
+        }
+        
+        let emailCompleto = loginEmail.trim().toLowerCase();
+        if (!emailCompleto.endsWith(DOMAIN)) {
+          emailCompleto += DOMAIN;
+        }
+
+        const demoFound = DEMO_USERS.find(u => u.email === emailCompleto);
+        if (demoFound && demoFound.contrasenia !== loginPassword) {
+          setLoginError("Contraseña incorrecta para este usuario.");
+          return;
+        }
+
+        const nombreGenerado = loginName.trim() || emailCompleto.split('@')[0].replace('.', ' ').toUpperCase();
+
+        const newUser = {
+          email: emailCompleto,
+          nombre: nombreGenerado,
+          rol: loginRole
+        };
+
+        setCurrentUser(newUser);
+        showToast(`Sesión iniciada como ${nombreGenerado}`);
+        setLoginPassword("");
+      };
+
+      const handleLogout = () => {
+        setCurrentUser(null);
+        showToast("Sesión cerrada correctamente.");
+      };
+
+      const getPortatilesDisponibles = (fecha, periodoId, recursoId) => {
+        const reservadoActualmente = reservas
+          .filter(r => r.fecha === fecha && r.periodoId === parseInt(periodoId) && r.recursoId === recursoId)
+          .reduce((sum, r) => sum + r.cantidad, 0);
+
+        return Math.max(0, TOTAL_PORTATILES_POR_CARRO - reservadoActualmente);
+      };
+
+      return (
+        <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800 antialiased font-medium">
+          {/* HEADER */}
+          <header className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-md sticky top-0 z-30 p-4">
+            <div className="max-w-7xl mx-auto flex justify-between items-center">
+              <div className="flex items-center space-x-3">
+                <Laptop />
+                <h1 className="text-lg font-bold">RESERVA DE RECURSOS DIGITALES</h1>
+              </div>
+              {currentUser && (
+                <div className="flex items-center gap-4">
+                  <span className="text-xs bg-indigo-800 px-3 py-1 rounded-full">{currentUser.nombre}</span>
+                  <button onClick={handleLogout} className="p-2 bg-slate-800 rounded-lg text-slate-300 hover:text-white">
+                    <LogOut />
+                  </button>
+                </div>
+              )}
+            </div>
+          </header>
+
+          {/* TOAST NOTIFICATION */}
+          {toastMessage && (
+            <div className="fixed bottom-6 right-6 z-50 bg-slate-900 border-l-4 border-emerald-500 text-white px-5 py-4 rounded-xl shadow-2xl flex items-center space-x-3">
+              <CheckCircle />
+              <p className="text-sm font-semibold">{toastMessage}</p>
             </div>
           )}
-        </div>
-      </header>
 
-      {/* TOAST NOTIFICATION */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 border-l-4 border-emerald-500 text-white px-5 py-4 rounded-xl shadow-2xl flex items-center space-x-3">
-          <CheckCircle className="h-6 w-6 text-emerald-400" />
-          <p className="text-sm font-semibold">{toastMessage}</p>
-        </div>
-      )}
+          {/* MAIN CONTAINER */}
+          <main className="flex-grow max-w-7xl w-full mx-auto p-4 flex flex-col">
+            {!currentUser ? (
+              /* PANTALLA DE LOGIN */
+              <div className="my-auto py-8 flex flex-col items-center">
+                <div className="max-w-md w-full bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100 flex flex-col">
+                  <div className="bg-gradient-to-br from-indigo-800 to-indigo-950 text-white p-6 text-center">
+                    <div className="mx-auto w-12 h-12 bg-amber-400 text-slate-950 rounded-2xl flex items-center justify-center mb-2">
+                      <Monitor />
+                    </div>
+                    <h2 className="text-xl font-bold">Acceso Docentes (SSO)</h2>
+                    <p className="text-xs text-slate-300 mt-1">IES Francés de Aranda</p>
+                  </div>
 
-      {/* MAIN CONTAINER */}
-      <main className="flex-grow max-w-7xl w-full mx-auto p-4 flex flex-col">
-        {!currentUser ? (
-          /* PANTALLA DE LOGIN */
-          <div className="my-auto py-8 flex flex-col items-center">
-            <div className="max-w-md w-full bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100 flex flex-col">
-              <div className="bg-gradient-to-br from-indigo-800 to-indigo-950 text-white p-6 text-center">
-                <div className="mx-auto w-12 h-12 bg-amber-400 text-slate-950 rounded-2xl flex items-center justify-center mb-2">
-                  <Monitor className="h-6 w-6" />
-                </div>
-                <h2 className="text-xl font-bold">Acceso Docentes (SSO)</h2>
-                <p className="text-xs text-slate-300 mt-1">IES Francés de Aranda</p>
-              </div>
+                  <div className="p-6 space-y-4">
+                    {/* Opciones Demo Rápida */}
+                    <div className="space-y-1.5">
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Usuarios de Demo:</span>
+                      {DEMO_USERS.map((user) => (
+                        <button
+                          key={user.email}
+                          onClick={() => handleDemoClick(user)}
+                          className="w-full text-left p-2 bg-slate-50 hover:bg-indigo-50 border border-slate-200 rounded-xl transition-all flex justify-between items-center text-xs"
+                        >
+                          <div>
+                            <p className="font-bold text-slate-800">{user.nombre}</p>
+                            <p className="text-[10px] text-slate-500 font-mono">{user.email}</p>
+                          </div>
+                          <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-bold uppercase">{user.rol}</span>
+                        </button>
+                      ))}
+                    </div>
 
-              <div className="p-6 space-y-4">
-                {/* Opciones Demo Rápida */}
-                <div className="space-y-1.5">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Usuarios de Demo:</span>
-                  {DEMO_USERS.map((user) => (
-                    <button
-                      key={user.email}
-                      onClick={() => handleDemoClick(user)}
-                      className="w-full text-left p-2 bg-slate-50 hover:bg-indigo-50 border border-slate-200 rounded-xl transition-all flex justify-between items-center text-xs"
-                    >
+                    <div className="relative flex py-1 items-center">
+                      <div className="flex-grow border-t border-slate-200"></div>
+                      <span className="flex-shrink mx-3 text-slate-400 text-xs font-semibold">o con tus credenciales</span>
+                      <div className="flex-grow border-t border-slate-200"></div>
+                    </div>
+
+                    {/* Formulario de Inicio de Sesión */}
+                    <form onSubmit={handleCustomLogin} className="space-y-3">
+                      {loginError && (
+                        <div className="p-2.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center gap-2">
+                          <AlertTriangle />
+                          <span>{loginError}</span>
+                        </div>
+                      )}
+
                       <div>
-                        <p className="font-bold text-slate-800">{user.nombre}</p>
-                        <p className="text-[10px] text-slate-500 font-mono">{user.email}</p>
+                        <label className="text-xs font-semibold text-slate-700 block mb-1">Usuario Corporativo</label>
+                        <div className="flex rounded-xl shadow-sm">
+                          <input
+                            type="text"
+                            value={loginEmail}
+                            onChange={(e) => setLoginEmail(e.target.value)}
+                            placeholder="nombre.apellido"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-l-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                          />
+                          <span className="bg-slate-100 border border-l-0 border-slate-300 rounded-r-xl px-2.5 text-[10px] font-mono flex items-center text-slate-500">
+                            {DOMAIN}
+                          </span>
+                        </div>
                       </div>
-                      <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-bold uppercase">{user.rol}</span>
-                    </button>
-                  ))}
-                </div>
 
-                <div className="relative flex py-1 items-center">
-                  <div className="flex-grow border-t border-slate-200"></div>
-                  <span className="flex-shrink mx-3 text-slate-400 text-xs font-semibold">o con tus credenciales</span>
-                  <div className="flex-grow border-t border-slate-200"></div>
-                </div>
+                      <div>
+                        <label className="text-xs font-semibold text-slate-700 block mb-1">Nombre Completo (Opcional)</label>
+                        <input
+                          type="text"
+                          value={loginName}
+                          onChange={(e) => setLoginName(e.target.value)}
+                          placeholder="Ej. María López"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                        />
+                      </div>
 
-                {/* Formulario de Inicio de Sesión */}
-                <form onSubmit={handleCustomLogin} className="space-y-3">
-                  {loginError && (
-                    <div className="p-2.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                      <span>{loginError}</span>
-                    </div>
-                  )}
+                      <div>
+                        <label className="text-xs font-semibold text-slate-700 block mb-1">Contraseña</label>
+                        <div className="relative">
+                          <input
+                            type={showPassword ? "text" : "password"}
+                            value={loginPassword}
+                            onChange={(e) => setLoginPassword(e.target.value)}
+                            placeholder="••••••••"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none pr-8"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                          >
+                            {showPassword ? <EyeOff /> : <Eye />}
+                          </button>
+                        </div>
+                      </div>
 
-                  <div>
-                    <label className="text-xs font-semibold text-slate-700 block mb-1">Usuario Corporativo</label>
-                    <div className="flex rounded-xl shadow-sm">
-                      <input
-                        type="text"
-                        value={loginEmail}
-                        onChange={(e) => setLoginEmail(e.target.value)}
-                        placeholder="nombre.apellido"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-l-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                      />
-                      <span className="bg-slate-100 border border-l-0 border-slate-300 rounded-r-xl px-2.5 text-[10px] font-mono flex items-center text-slate-500">
-                        {DOMAIN}
-                      </span>
-                    </div>
-                  </div>
+                      <div>
+                        <label className="text-xs font-semibold text-slate-700 block mb-1">Rol</label>
+                        <select
+                          value={loginRole}
+                          onChange={(e) => setLoginRole(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white"
+                        >
+                          <option value="docente">Docente</option>
+                          <option value="admin">Administrador / Equipo TIC</option>
+                        </select>
+                      </div>
 
-                  <div>
-                    <label className="text-xs font-semibold text-slate-700 block mb-1">Nombre Completo (Opcional)</label>
-                    <input
-                      type="text"
-                      value={loginName}
-                      onChange={(e) => setLoginName(e.target.value)}
-                      placeholder="Ej. María López"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-semibold text-slate-700 block mb-1">Contraseña</label>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none pr-8"
-                      />
                       <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                        type="submit"
+                        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 mt-2"
                       >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        <Lock />
+                        Entrar SSO
                       </button>
-                    </div>
+                    </form>
                   </div>
+                </div>
+              </div>
+            ) : (
+              /* PANEL DENTRO DE LA APLICACIÓN */
+              <div className="space-y-6">
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                  <h2 className="text-lg font-bold text-slate-800 mb-2">Panel Principal de Reservas</h2>
+                  <p className="text-xs text-slate-600">
+                    Selecciona la fecha para consultar la disponibilidad de los carros de portátiles y aulas de informática.
+                  </p>
 
-                  <div>
-                    <label className="text-xs font-semibold text-slate-700 block mb-1">Rol</label>
-                    <select
-                      value={loginRole}
-                      onChange={(e) => setLoginRole(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white"
-                    >
-                      <option value="docente">Docente</option>
-                      <option value="admin">Administrador / Equipo TIC</option>
-                    </select>
+                  <div className="mt-4 flex flex-wrap gap-4 items-center">
+                    <input
+                      type="date"
+                      value={fechaSeleccionada}
+                      onChange={(e) => setFechaSeleccionada(e.target.value)}
+                      className="border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    />
+                    <span className="text-xs font-semibold text-indigo-900 bg-indigo-50 px-3 py-2 rounded-xl border border-indigo-100">
+                      {formatearFechaBonita(fechaSeleccionada)}
+                    </span>
                   </div>
+                </div>
 
-                  <button
-                    type="submit"
-                    className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 mt-2"
-                  >
-                    <Lock className="h-3.5 w-3.5" />
-                    Entrar SSO
-                  </button>
-                </form>
-              </div>
-            </div>
-          </div>
-        ) : (
-          /* PANEL DENTRO DE LA APLICACIÓN */
-          <div className="space-y-6">
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-              <h2 className="text-lg font-bold text-slate-800 mb-2">Panel Principal de Reservas</h2>
-              <p className="text-xs text-slate-600">
-                Selecciona la fecha para consultar la disponibilidad de los carros de portátiles y aulas de informática.
-              </p>
+                {/* TABLA DE RECURSOS POR PERIODO */}
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                  <div className="p-4 bg-slate-100 border-b border-slate-200 font-bold text-xs text-slate-700">
+                    Horarios y Disponibilidad
+                  </div>
+                  <div className="divide-y divide-slate-100">
+                    {PERIODOS.map((periodo) => (
+                      <div key={periodo.id} className="p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                        <div className="w-32">
+                          <p className="font-bold text-xs text-slate-800">{periodo.nombre}</p>
+                          <p className="text-[10px] text-slate-500">{periodo.rango}</p>
+                        </div>
 
-              <div className="mt-4 flex flex-wrap gap-4 items-center">
-                <input
-                  type="date"
-                  value={fechaSeleccionada}
-                  onChange={(e) => setFechaSeleccionada(e.target.value)}
-                  className="border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
-                <span className="text-xs font-semibold text-indigo-900 bg-indigo-50 px-3 py-2 rounded-xl border border-indigo-100">
-                  {formatearFechaBonita(fechaSeleccionada)}
-                </span>
-              </div>
-            </div>
-
-            {/* TABLA DE RECURSOS POR PERIODO */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="p-4 bg-slate-100 border-b border-slate-200 font-bold text-xs text-slate-700">
-                Horarios y Disponibilidad
-              </div>
-              <div className="divide-y divide-slate-100">
-                {PERIODOS.map((periodo) => (
-                  <div key={periodo.id} className="p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div className="w-32">
-                      <p className="font-bold text-xs text-slate-800">{periodo.nombre}</p>
-                      <p className="text-[10px] text-slate-500">{periodo.rango}</p>
-                    </div>
-
-                    {periodo.esRecreo ? (
-                      <div className="text-xs text-slate-400 italic">Período de Descanso</div>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full max-w-xl">
-                        {Object.values(RECURSOS).filter(r => r.tipo === 'laptop').map((carro) => {
-                          const disponibles = getPortatilesDisponibles(fechaSeleccionada, periodo.id, carro.id);
-                          return (
-                            <div key={carro.id} className="bg-slate-50 border border-slate-200 p-2 rounded-xl text-center">
-                              <p className="text-[10px] font-bold text-slate-700">{carro.nombre}</p>
-                              <p className={`text-xs font-extrabold mt-1 ${disponibles > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                {disponibles} / {TOTAL_PORTATILES_POR_CARRO} libres
-                              </p>
-                            </div>
-                          );
-                        })}
+                        {periodo.esRecreo ? (
+                          <div className="text-xs text-slate-400 italic">Período de Descanso</div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full max-w-xl">
+                            {Object.values(RECURSOS).filter(r => r.tipo === 'laptop').map((carro) => {
+                              const disponibles = getPortatilesDisponibles(fechaSeleccionada, periodo.id, carro.id);
+                              return (
+                                <div key={carro.id} className="bg-slate-50 border border-slate-200 p-2 rounded-xl text-center">
+                                  <p className="text-[10px] font-bold text-slate-700">{carro.nombre}</p>
+                                  <p className={`text-xs font-extrabold mt-1 ${disponibles > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                    {disponibles} / {TOTAL_PORTATILES_POR_CARRO} libres
+                                  </p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
-                    )}
+                    ))}
                   </div>
-                ))}
+                </div>
               </div>
-            </div>
-          </div>
-        )}
-      </main>
-    </div>
-  );
-}
+            )}
+          </main>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
