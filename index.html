@@ -1,1179 +1,252 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestión de Recursos Digitales - IES Francés de Aranda</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons CDN -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Google Fonts Inter -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        /* Custom scrollbar styling for tables */
-        ::-webkit-scrollbar {
-            height: 8px;
-            width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #f1f5f9;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 9999px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Reservas - IES Frances de Aranda</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
 </head>
-<body class="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-800 antialiased">
-
-    <!-- Content container injected dynamically -->
-    <div id="app" class="flex-grow flex flex-col min-h-screen"></div>
-
-    <!-- Modal Container -->
-    <div id="modal-root"></div>
-
-    <!-- Toast Notification Container -->
-    <div id="toast-root"></div>
-
-    <script>
-        const DOMAIN = "@iesfrancesdearanda.es";
-        const TOTAL_PORTATILES_POR_CARRO = 22;
-        const ADMIN_EMAIL = "jefatura@iesfrancesdearanda.es";
-        const DEMO_PASSWORD = "ies2026";
-
-        const PERIODOS = [
-            { id: 1, nombre: "1ª Hora", rango: "8:30 - 9:20" },
-            { id: 2, nombre: "2ª Hora", rango: "9:25 - 10:15" },
-            { id: 3, nombre: "3ª Hora", rango: "10:20 - 11:10" },
-            { id: 'recreo', nombre: "Recreo", rango: "11:10 - 11:40", esRecreo: true },
-            { id: 4, nombre: "4ª Hora", rango: "11:40 - 12:30" },
-            { id: 5, nombre: "5ª Hora", rango: "12:35 - 13:25" },
-            { id: 6, nombre: "6ª Hora", rango: "13:30 - 14:20" }
-        ];
-
-        const RECURSOS = {
-            CARRO_1: { id: "carro_1", nombre: "Carro 1ª Planta", tipo: "laptop", max: TOTAL_PORTATILES_POR_CARRO, ubicacion: "Planta 1" },
-            CARRO_2: { id: "carro_2", nombre: "Carro 2ª Planta", tipo: "laptop", max: TOTAL_PORTATILES_POR_CARRO, ubicacion: "Planta 2" },
-            CARRO_UM: { id: "carro_um", nombre: "Carro Usos Múltiples", tipo: "laptop", max: TOTAL_PORTATILES_POR_CARRO, ubicacion: "Planta Baja" },
-            AULA_INF2: { id: "aula_inf2", nombre: "Aula Informática 2", tipo: "aula", max: 1, ubicacion: "Planta 1" }
-        };
-
-        const DEMO_USERS = [
-            { email: "ana.sanchez" + DOMAIN, nombre: "Ana Sánchez (Tecnología)" },
-            { email: "carlos.gomez" + DOMAIN, nombre: "Carlos Gómez (Matemáticas)" },
-            { email: ADMIN_EMAIL, nombre: "Jefatura de Estudios (Equipo Directivo)" }
-        ];
-
-        const RESERVAS_INICIALES = [
-            {
-                id: "res-101",
-                fecha: "2026-09-07",
-                periodoId: 1,
-                recursoId: "carro_1",
-                cantidad: 18,
-                materia: "Tecnología Digital",
-                grupo: "3º ESO A",
-                docenteEmail: "ana.sanchez@iesfrancesdearanda.es",
-                docenteNombre: "Ana Sánchez (Tecnología)",
-                creadoEn: "2026-09-01T08:00:00.000Z"
-            },
-            {
-                id: "res-102",
-                fecha: "2026-09-07",
-                periodoId: 3,
-                recursoId: "aula_inf2",
-                cantidad: 1,
-                materia: "Matemáticas Aplicadas",
-                grupo: "4º ESO B",
-                docenteEmail: "carlos.gomez@iesfrancesdearanda.es",
-                docenteNombre: "Carlos Gómez (Matemáticas)",
-                creadoEn: "2026-09-02T10:15:00.000Z"
-            }
-        ];
-
-        let state = {
-            currentUser: null,
-            loginEmail: "",
-            loginPassword: "",
-            loginError: "",
-            fechaSeleccionada: "2026-09-07",
-            reservas: [],
-            currentTab: 'month', // 'month' | 'daily' | 'my-bookings' | 'admin' | 'regulations'
-            monthViewDate: new Date(2026, 8, 1), // Septiembre de 2026
-            showReservaModal: false,
-            modalPeriodo: null,
-            modalRecurso: null,
-            modalMateria: "",
-            modalGrupo: "",
-            modalDocenteNombre: "",
-            modalCantidad: 1,
-            modalError: "",
-            filtroRecurso: "all",
-            toastMessage: null,
-            deletingId: null
-        };
-
-        // Cargar reservas desde localStorage
-        function loadReservas() {
-            const saved = localStorage.getItem('ies_reservas_v2');
-            if (saved) {
-                try {
-                    state.reservas = JSON.parse(saved);
-                } catch (e) {
-                    console.error("Error al cargar reservas del almacenamiento local", e);
-                    state.reservas = RESERVAS_INICIALES;
-                }
-            } else {
-                state.reservas = RESERVAS_INICIALES;
-            }
-        }
-
-        function saveReservas(nuevas) {
-            state.reservas = nuevas;
-            localStorage.setItem('ies_reservas_v2', JSON.stringify(nuevas));
-            renderApp();
-        }
-
-        function showToast(msg) {
-            state.toastMessage = msg;
-            renderToast();
-            setTimeout(() => {
-                state.toastMessage = null;
-                renderToast();
-            }, 3500);
-        }
-
-        function getPortatilesDisponibles(fecha, periodoId, recursoId) {
-            const reservado = state.reservas
-                .filter(r => r.fecha === fecha && String(r.periodoId) === String(periodoId) && r.recursoId === recursoId)
-                .reduce((sum, r) => sum + r.cantidad, 0);
-            return Math.max(0, TOTAL_PORTATILES_POR_CARRO - reservado);
-        }
-
-        function isAulaReservada(fecha, periodoId, recursoId) {
-            return state.reservas.some(r => r.fecha === fecha && String(r.periodoId) === String(periodoId) && r.recursoId === recursoId);
-        }
-
-        function getReservaActual(fecha, periodoId, recursoId) {
-            return state.reservas.find(r => r.fecha === fecha && String(r.periodoId) === String(periodoId) && r.recursoId === recursoId);
-        }
-
-        function generateMonthDays() {
-            const year = state.monthViewDate.getFullYear();
-            const month = state.monthViewDate.getMonth();
-            const firstDay = new Date(year, month, 1);
-            const lastDay = new Date(year, month + 1, 0);
-
-            const days = [];
-            let startDayOfWeek = firstDay.getDay(); // 0 = Domingo, 1 = Lunes
-            if (startDayOfWeek === 0) startDayOfWeek = 7;
-
-            // Rellenar días anteriores vacíos
-            for (let i = 1; i < startDayOfWeek; i++) {
-                days.push(null);
-            }
-
-            // Días del mes actual
-            for (let i = 1; i <= lastDay.getDate(); i++) {
-                days.push(new Date(year, month, i));
-            }
-            return days;
-        }
-
-        function handleLogin(e) {
-            e.preventDefault();
-            state.loginError = "";
-
-            if (!state.loginEmail.trim() || !state.loginPassword.trim()) {
-                state.loginError = "Introduce tu usuario y contraseña corporativa.";
-                renderApp();
-                return;
-            }
-
-            if (state.loginPassword !== DEMO_PASSWORD) {
-                state.loginError = `Contraseña incorrecta. Utiliza '${DEMO_PASSWORD}' para la demo.`;
-                renderApp();
-                return;
-            }
-
-            let fullEmail = state.loginEmail.trim().toLowerCase();
-            if (!fullEmail.endsWith(DOMAIN)) {
-                fullEmail += DOMAIN;
-            }
-
-            // Verificación estricta del Administrador
-            const esAdmin = fullEmail === ADMIN_EMAIL.toLowerCase();
-
-            const demoFound = DEMO_USERS.find(u => u.email.toLowerCase() === fullEmail);
-            const nombreGenerado = demoFound 
-                ? demoFound.nombre 
-                : fullEmail.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
-
-            state.currentUser = {
-                email: fullEmail,
-                nombre: nombreGenerado,
-                rol: esAdmin ? "admin" : "docente"
-            };
-
-            state.currentTab = "month";
-            showToast(`Sesión iniciada como ${esAdmin ? 'Administrador' : 'Docente'}`);
-            renderApp();
-        }
-
-        function handleDemoSelect(email) {
-            state.loginEmail = email.replace(DOMAIN, '');
-            state.loginPassword = DEMO_PASSWORD;
-            renderApp();
-        }
-
-        function handleLogout() {
-            state.currentUser = null;
-            state.loginEmail = "";
-            state.loginPassword = "";
-            state.currentTab = "month";
-            showToast("Has cerrado la sesión de forma segura.");
-            renderApp();
-        }
-
-        function handleSelectMonthDate(dateObj) {
-            const day = dateObj.getDay();
-            if (day === 0 || day === 6) {
-                showToast("Los fines de semana no se pueden seleccionar para reservas.");
-                return;
-            }
-
-            const year = dateObj.getFullYear();
-            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-            const d = String(dateObj.getDate()).padStart(2, '0');
-            state.fechaSeleccionada = `${year}-${month}-${d}`;
-            state.currentTab = "daily";
-            renderApp();
-        }
-
-        function abrirModalReserva(periodoId, recursoId) {
-            const periodo = PERIODOS.find(p => String(p.id) === String(periodoId));
-            const recurso = Object.values(RECURSOS).find(r => r.id === recursoId);
-            
-            state.modalPeriodo = periodo;
-            state.modalRecurso = recurso;
-            state.modalMateria = "";
-            state.modalGrupo = "";
-            state.modalDocenteNombre = state.currentUser ? state.currentUser.nombre : "";
-            
-            if (recurso.tipo === 'laptop') {
-                const lib = getPortatilesDisponibles(state.fechaSeleccionada, periodo.id, recurso.id);
-                state.modalCantidad = Math.min(15, lib);
-            } else {
-                state.modalCantidad = 1;
-            }
-            
-            state.modalError = "";
-            state.showReservaModal = true;
-            renderModal();
-        }
-
-        function handleCrearReserva(e) {
-            e.preventDefault();
-            if (!state.currentUser || !state.modalPeriodo || !state.modalRecurso) return;
-
-            if (!state.modalDocenteNombre.trim()) {
-                state.modalError = "Debes especificar el nombre del docente.";
-                renderModal();
-                return;
-            }
-            if (!state.modalMateria.trim()) {
-                state.modalError = "Debes especificar la materia o actividad.";
-                renderModal();
-                return;
-            }
-            if (!state.modalGrupo.trim()) {
-                state.modalError = "Debes indicar el grupo de alumnos.";
-                renderModal();
-                return;
-            }
-
-            if (state.modalRecurso.tipo === 'laptop') {
-                const disp = getPortatilesDisponibles(state.fechaSeleccionada, state.modalPeriodo.id, state.modalRecurso.id);
-                if (state.modalCantidad <= 0) {
-                    state.modalError = "Indica una cantidad válida de portátiles.";
-                    renderModal();
-                    return;
-                }
-                if (state.modalCantidad > disp) {
-                    state.modalError = `Solo quedan ${disp} portátiles disponibles en este periodo.`;
-                    renderModal();
-                    return;
-                }
-            } else {
-                if (isAulaReservada(state.fechaSeleccionada, state.modalPeriodo.id, state.modalRecurso.id)) {
-                    state.modalError = "El aula ya está ocupada en este tramo horario.";
-                    renderModal();
-                    return;
-                }
-            }
-
-            const nueva = {
-                id: "res-" + Date.now(),
-                fecha: state.fechaSeleccionada,
-                periodoId: state.modalPeriodo.id,
-                recursoId: state.modalRecurso.id,
-                cantidad: state.modalRecurso.tipo === 'laptop' ? Number(state.modalCantidad) : 1,
-                materia: state.modalMateria.trim(),
-                grupo: state.modalGrupo.trim(),
-                docenteEmail: state.currentUser.email,
-                docenteNombre: state.modalDocenteNombre.trim(),
-                creadoEn: new Date().toISOString()
-            };
-
-            state.showReservaModal = false;
-            renderModal();
-            saveReservas([...state.reservas, nueva]);
-            showToast("¡Reserva confirmada con éxito!");
-        }
-
-        function ejecutarEliminacion(id) {
-            const actualizadas = state.reservas.filter(r => r.id !== id);
-            state.deletingId = null;
-            saveReservas(actualizadas);
-            showToast("Reserva cancelada correctamente.");
-        }
-
-        function renderHeaderHTML() {
-            if (!state.currentUser) return '';
-
-            const misReservasCount = state.reservas.filter(r => r.docenteEmail === state.currentUser.email).length;
-            const esAdmin = state.currentUser.rol === 'admin';
-
-            return `
-            <header class="bg-slate-900 text-white shadow-xl sticky top-0 z-30 border-b border-slate-800">
-                <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
-                    <div class="flex items-center space-x-3">
-                        <div class="bg-indigo-600 p-2.5 rounded-2xl shadow-md text-white">
-                            <i data-lucide="laptop" class="h-6 w-6 stroke-[2.2]"></i>
-                        </div>
-                        <div>
-                            <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-                                IES Francés de Aranda
-                                <span class="text-[10px] bg-indigo-500/30 text-indigo-300 border border-indigo-400/30 px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider">
-                                    Recursos Digitales
-                                </span>
-                            </h1>
-                            <p class="text-xs text-slate-400 font-medium">Sistema centralizado de reserva de carros y aulas</p>
-                        </div>
-                    </div>
-
-                    <div class="flex items-center space-x-1 md:space-x-2 bg-slate-800/80 p-1.5 rounded-2xl border border-slate-700/60">
-                        <button
-                            onclick="setTab('month')"
-                            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${state.currentTab === 'month' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'}"
-                        >
-                            <i data-lucide="calendar-range" class="h-4 w-4 inline mr-1"></i>
-                            <span class="hidden sm:inline">Calendario Mensual</span>
-                        </button>
-
-                        <button
-                            onclick="setTab('daily')"
-                            class="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${state.currentTab === 'daily' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'}"
-                        >
-                            <i data-lucide="clock" class="h-4 w-4 inline mr-1"></i>
-                            <span class="hidden sm:inline">Vista Diaria</span>
-                        </button>
-
-                        <button
-                            onclick="setTab('my-bookings')"
-                            class="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${state.currentTab === 'my-bookings' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'}"
-                        >
-                            <i data-lucide="book-open" class="h-4 w-4 inline mr-1"></i>
-                            <span class="hidden sm:inline">Mis Reservas</span>
-                            ${misReservasCount > 0 ? `<span class="bg-indigo-500 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full ml-1">${misReservasCount}</span>` : ''}
-                        </button>
-
-                        ${esAdmin ? `
-                        <button
-                            onclick="setTab('admin')"
-                            class="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${state.currentTab === 'admin' ? 'bg-amber-500 text-slate-950 shadow-md font-bold' : 'text-amber-400 hover:bg-amber-400/10'}"
-                        >
-                            <i data-lucide="shield" class="h-4 w-4 inline mr-1"></i>
-                            <span class="hidden sm:inline">Admin</span>
-                        </button>
-                        ` : ''}
-
-                        <button
-                            onclick="setTab('regulations')"
-                            class="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${state.currentTab === 'regulations' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'}"
-                        >
-                            <i data-lucide="file-text" class="h-4 w-4 inline mr-1"></i>
-                            <span class="hidden sm:inline">Normativa</span>
-                        </button>
-
-                        <div class="h-4 w-px bg-slate-700 mx-1"></div>
-
-                        <div class="flex items-center gap-2 pl-1 pr-2">
-                            <div class="text-right hidden lg:block">
-                                <p class="text-xs font-bold text-white leading-tight">${state.currentUser.nombre}</p>
-                                <p class="text-[10px] text-slate-400">${esAdmin ? 'Administración' : 'Docente'}</p>
-                            </div>
-                            <button 
-                                onclick="handleLogout()"
-                                class="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all"
-                                title="Cerrar sesión"
-                            >
-                                <i data-lucide="log-out" class="h-4 w-4"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </header>
-            `;
-        }
-
-        function renderLoginHTML() {
-            return `
-            <div class="my-auto py-8 flex flex-col items-center justify-center">
-                <div class="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-200/80 overflow-hidden">
-                    <div class="bg-slate-900 text-white p-8 text-center relative overflow-hidden">
-                        <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-indigo-600/20 rounded-full blur-2xl"></div>
-                        <i data-lucide="laptop" class="h-12 w-12 text-indigo-400 mx-auto mb-3 stroke-[1.8]"></i>
-                        <h2 class="text-2xl font-bold tracking-tight">Acceso Corporativo</h2>
-                        <p class="text-xs text-slate-400 mt-1">Portal de reserva de medios informáticos IES</p>
-                    </div>
-
-                    <div class="p-8 space-y-6">
-                        <div class="bg-indigo-50/60 border border-indigo-100 rounded-2xl p-4">
-                            <p class="text-[11px] font-bold uppercase tracking-wider text-indigo-900 mb-2 flex items-center gap-1.5">
-                                <i data-lucide="info" class="h-3.5 w-3.5 text-indigo-600 inline"></i> Perfiles Demo (Clic rápido):
-                            </p>
-                            <div class="space-y-1.5">
-                                ${DEMO_USERS.map(u => `
-                                    <button
-                                        type="button"
-                                        onclick="handleDemoSelect('${u.email}')"
-                                        class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-all flex items-center justify-between ${
-                                            u.email === ADMIN_EMAIL 
-                                                ? 'bg-amber-100/70 hover:bg-amber-200/80 text-amber-950 font-bold border border-amber-300/60' 
-                                                : 'bg-white hover:bg-indigo-100/50 text-slate-700 border border-indigo-100'
-                                        }"
-                                    >
-                                        <span class="truncate">${u.nombre}</span>
-                                        <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-200/60 text-slate-600">
-                                            ${u.email === ADMIN_EMAIL ? 'ADMIN' : 'DOCENTE'}
-                                        </span>
-                                    </button>
-                                `).join('')}
-                            </div>
-                        </div>
-
-                        <form onsubmit="handleLogin(event)" class="space-y-4">
-                            <div>
-                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-                                    Correo del centro
-                                </label>
-                                <div class="relative">
-                                    <input 
-                                        type="text" 
-                                        id="loginEmailInput"
-                                        value="${state.loginEmail}"
-                                        oninput="state.loginEmail = this.value"
-                                        placeholder="ej. jefatura o ana.sanchez"
-                                        class="w-full pl-3 pr-40 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-600 text-sm font-medium outline-none transition-all"
-                                    />
-                                    <span class="absolute right-3 top-3.5 text-slate-400 text-xs font-semibold pointer-events-none">
-                                        ${DOMAIN}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-                                    Contraseña
-                                </label>
-                                <input 
-                                    type="password" 
-                                    id="loginPasswordInput"
-                                    value="${state.loginPassword}"
-                                    oninput="state.loginPassword = this.value"
-                                    placeholder="Contraseña demo (ies2026)"
-                                    class="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-600 text-sm font-medium outline-none transition-all"
-                                />
-                            </div>
-
-                            ${state.loginError ? `
-                                <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-600 text-xs font-semibold flex items-center gap-2">
-                                    <i data-lucide="alert-triangle" class="h-4 w-4 shrink-0"></i>
-                                    <span>${state.loginError}</span>
-                                </div>
-                            ` : ''}
-
-                            <button 
-                                type="submit" 
-                                class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 text-sm"
-                            >
-                                <i data-lucide="user" class="h-4 w-4"></i> Entrar al Sistema
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-            `;
-        }
-
-        function renderMonthViewHTML() {
-            const days = generateMonthDays();
-            const monthName = state.monthViewDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' });
-
-            return `
-            <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex-grow flex flex-col">
-                <div class="flex flex-wrap justify-between items-center mb-6 gap-4">
-                    <div>
-                        <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
-                            <i data-lucide="calendar-days" class="h-6 w-6 text-indigo-600"></i>
-                            Calendario de Reserva Mensual
-                        </h2>
-                        <p class="text-xs text-slate-500">
-                            Haz clic en cualquier día lectivo (lunes a viernes) para gestionar o consultar las reservas.
-                        </p>
-                    </div>
-
-                    <div class="flex items-center space-x-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
-                        <button 
-                            onclick="changeMonth(-1)"
-                            class="p-2 hover:bg-white rounded-xl text-slate-700 transition-all shadow-sm"
-                            title="Mes anterior"
-                        >
-                            <i data-lucide="chevron-left" class="h-5 w-5"></i>
-                        </button>
-                        <span class="px-4 text-sm font-bold text-slate-800 min-w-[140px] text-center capitalize">
-                            ${monthName}
-                        </span>
-                        <button 
-                            onclick="changeMonth(1)"
-                            class="p-2 hover:bg-white rounded-xl text-slate-700 transition-all shadow-sm"
-                            title="Mes siguiente"
-                        >
-                            <i data-lucide="chevron-right" class="h-5 w-5"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-7 gap-2 flex-grow">
-                    ${['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO', 'DOMINGO'].map((dia, i) => `
-                        <div class="text-center font-extrabold text-[11px] py-2 tracking-wider ${i >= 5 ? 'text-slate-400' : 'text-slate-600'}">
-                            ${dia}
-                        </div>
-                    `).join('')}
-
-                    ${days.map((date, idx) => {
-                        if (!date) {
-                            return `<div class="p-2 bg-slate-50/50 rounded-2xl border border-dashed border-slate-100 opacity-40"></div>`;
-                        }
-
-                        const dayNum = date.getDay();
-                        const isWeekend = dayNum === 0 || dayNum === 6;
-
-                        const y = date.getFullYear();
-                        const m = String(date.getMonth() + 1).padStart(2, '0');
-                        const d = String(date.getDate()).padStart(2, '0');
-                        const dateIso = `${y}-${m}-${d}`;
-
-                        const esSeleccionado = dateIso === state.fechaSeleccionada;
-                        const numReservas = state.reservas.filter(r => r.fecha === dateIso).length;
-
-                        return `
-                        <button
-                            onclick="handleSelectMonthDateStr('${dateIso}')"
-                            ${isWeekend ? 'disabled' : ''}
-                            class="min-h-[100px] p-2 rounded-2xl border text-left flex flex-col justify-between transition-all ${
-                                isWeekend 
-                                    ? 'bg-slate-100/60 border-transparent cursor-not-allowed opacity-50' 
-                                    : esSeleccionado 
-                                        ? 'bg-indigo-50/90 border-indigo-600 ring-2 ring-indigo-600 shadow-md' 
-                                        : 'bg-white border-slate-200 hover:border-indigo-400 hover:shadow-lg cursor-pointer'
-                            }"
-                        >
-                            <div class="flex justify-between items-start w-full">
-                                <span class="text-sm font-bold rounded-lg px-2 py-0.5 ${
-                                    esSeleccionado 
-                                        ? 'bg-indigo-600 text-white' 
-                                        : isWeekend ? 'text-slate-400' : 'text-slate-800'
-                                }">
-                                    ${date.getDate()}
-                                </span>
-
-                                ${!isWeekend && numReservas > 0 ? `
-                                    <span class="text-[10px] font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full border border-indigo-200">
-                                        ${numReservas} ${numReservas === 1 ? 'reserva' : 'reservas'}
-                                    </span>
-                                ` : ''}
-                            </div>
-
-                            ${!isWeekend ? `
-                                <div class="mt-2 text-[11px] font-medium text-slate-500">
-                                    ${numReservas === 0 ? `
-                                        <span class="text-slate-300">Disponible</span>
-                                    ` : `
-                                        <div class="space-y-1">
-                                            <span class="text-[10px] text-slate-600 font-semibold block">
-                                                Ver cuadrante →
-                                            </span>
-                                        </div>
-                                    `}
-                                </div>
-                            ` : ''}
-                        </button>
-                        `;
-                    }).join('')}
-                </div>
-            </div>
-            `;
-        }
-
-        function renderDailyViewHTML() {
-            const fechaObj = new Date(state.fechaSeleccionada + "T00:00:00");
-            const fechaFormateada = fechaObj.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-            
-            const recursosFiltrados = Object.values(RECURSOS).filter(r => state.filtroRecurso === 'all' || r.tipo === state.filtroRecurso);
-
-            return `
-            <div class="space-y-4">
-                <div class="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-wrap justify-between items-center gap-4">
-                    <div class="flex items-center space-x-3">
-                        <button 
-                            onclick="setTab('month')"
-                            class="p-2 hover:bg-slate-100 text-slate-600 rounded-xl transition-all border border-slate-200 flex items-center gap-1 text-xs font-bold"
-                        >
-                            <i data-lucide="chevron-left" class="h-4 w-4"></i> Volver al Mes
-                        </button>
-                        <div>
-                            <span class="text-xs text-slate-400 font-bold uppercase tracking-wider block">Día seleccionado</span>
-                            <span class="text-base font-bold text-slate-900 capitalize">
-                                ${fechaFormateada}
-                            </span>
-                        </div>
-                    </div>
-
-                    <div class="flex items-center space-x-2">
-                        <i data-lucide="filter" class="h-4 w-4 text-slate-400"></i>
-                        <span class="text-xs font-bold text-slate-500">Filtrar:</span>
-                        <select
-                            onchange="setFiltroRecurso(this.value)"
-                            class="bg-slate-50 border border-slate-200 text-xs font-semibold rounded-xl px-3 py-1.5 outline-none focus:ring-2 focus:ring-indigo-600"
-                        >
-                            <option value="all" ${state.filtroRecurso === 'all' ? 'selected' : ''}>Todos los Recursos</option>
-                            <option value="laptop" ${state.filtroRecurso === 'laptop' ? 'selected' : ''}>Solo Carros de Portátiles</option>
-                            <option value="aula" ${state.filtroRecurso === 'aula' ? 'selected' : ''}>Solo Aulas de Informática</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="overflow-x-auto">
-                        <table class="w-full border-collapse text-left">
-                            <thead>
-                                <tr class="bg-slate-900 text-white text-xs font-bold uppercase tracking-wider">
-                                    <th class="p-4 w-48 bg-slate-950 border-b border-slate-800 sticky left-0 z-10">
-                                        Tramo Horario
-                                    </th>
-                                    ${recursosFiltrados.map(recurso => `
-                                        <th class="p-4 text-center min-w-[210px] border-l border-slate-800">
-                                            <div class="flex flex-col items-center">
-                                                <span class="font-bold text-sm text-white">${recurso.nombre}</span>
-                                                <span class="text-[10px] text-slate-400 font-normal">
-                                                    ${recurso.ubicacion} • ${recurso.tipo === 'laptop' ? `Máx: ${recurso.max} equipos` : 'Capacidad: 1 Grupo'}
-                                                </span>
-                                            </div>
-                                        </th>
-                                    `).join('')}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${PERIODOS.map(periodo => `
-                                    <tr class="${periodo.esRecreo ? 'bg-indigo-50/50 border-y border-indigo-100' : 'border-b border-slate-100 hover:bg-slate-50/40'}">
-                                        <td class="p-4 bg-slate-900 text-slate-200 sticky left-0 z-10 border-r border-slate-800 font-semibold text-xs">
-                                            <div class="font-bold text-sm text-white">${periodo.nombre}</div>
-                                            <div class="text-[11px] text-slate-400 font-normal">${periodo.rango}</div>
-                                        </td>
-
-                                        ${periodo.esRecreo ? `
-                                            <td colSpan="${recursosFiltrados.length}" class="p-3 text-center text-xs font-bold text-indigo-600 uppercase tracking-widest bg-indigo-50/70">
-                                                Periodo de Recreo y Descanso Lectivo
-                                            </td>
-                                        ` : `
-                                            ${recursosFiltrados.map(recurso => {
-                                                const esLaptop = recurso.tipo === 'laptop';
-                                                const disponibles = getPortatilesDisponibles(state.fechaSeleccionada, periodo.id, recurso.id);
-                                                const estaReservadaAula = isAulaReservada(state.fechaSeleccionada, periodo.id, recurso.id);
-                                                const reservaExistente = getReservaActual(state.fechaSeleccionada, periodo.id, recurso.id);
-
-                                                return `
-                                                <td class="p-3 border-l border-slate-100 align-top text-center">
-                                                    ${esLaptop ? `
-                                                        <div class="space-y-2">
-                                                            <div class="flex justify-between items-center px-1">
-                                                                <span class="text-[11px] font-bold ${disponibles > 0 ? 'text-emerald-600' : 'text-rose-600'}">
-                                                                    ${disponibles} disp.
-                                                                </span>
-                                                                <span class="text-[10px] text-slate-400">Total: 22</span>
-                                                            </div>
-
-                                                            <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                                                                <div 
-                                                                    class="h-full ${disponibles > 10 ? 'bg-emerald-500' : disponibles > 0 ? 'bg-amber-500' : 'bg-rose-500'}"
-                                                                    style="width: ${((22 - disponibles) / 22) * 100}%"
-                                                                ></div>
-                                                            </div>
-
-                                                            ${disponibles > 0 ? `
-                                                                <button
-                                                                    onclick="abrirModalReserva('${periodo.id}', '${recurso.id}')"
-                                                                    class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-1"
-                                                                >
-                                                                    <i data-lucide="plus" class="h-3.5 w-3.5"></i> Reservar
-                                                                </button>
-                                                            ` : `
-                                                                <div class="py-2 bg-slate-100 text-slate-400 rounded-xl text-[11px] font-semibold">
-                                                                    Agotado
-                                                                </div>
-                                                            `}
-                                                        </div>
-                                                    ` : `
-                                                        <div>
-                                                            ${estaReservadaAula && reservaExistente ? `
-                                                                <div class="bg-rose-50 border border-rose-200 rounded-2xl p-2.5 text-left">
-                                                                    <p class="text-xs font-bold text-rose-900 truncate">${reservaExistente.materia}</p>
-                                                                    <p class="text-[11px] text-rose-700 font-medium">${reservaExistente.grupo}</p>
-                                                                    <p class="text-[10px] text-rose-500 mt-1 truncate">${reservaExistente.docenteNombre}</p>
-                                                                </div>
-                                                            ` : `
-                                                                <button
-                                                                    onclick="abrirModalReserva('${periodo.id}', '${recurso.id}')"
-                                                                    class="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-1"
-                                                                >
-                                                                    <i data-lucide="plus" class="h-3.5 w-3.5"></i> Reservar Aula
-                                                                </button>
-                                                            `}
-                                                        </div>
-                                                    `}
-                                                </td>
-                                                `;
-                                            }).join('')}
-                                        `}
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-            `;
-        }
-
-        function renderMyBookingsHTML() {
-            const misReservas = state.reservas
-                .filter(r => r.docenteEmail === state.currentUser.email)
-                .sort((a, b) => b.fecha.localeCompare(a.fecha));
-
-            return `
-            <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
-                <div class="flex justify-between items-center mb-6">
-                    <div>
-                        <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
-                            <i data-lucide="book-open" class="h-6 w-6 text-indigo-600"></i> Mis Reservas Activas
-                        </h2>
-                        <p class="text-xs text-slate-500">Gestión de recursos asignados a tu cuenta docente</p>
-                    </div>
-                </div>
-
-                ${misReservas.length === 0 ? `
-                    <div class="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                        <i data-lucide="laptop" class="h-12 w-12 text-slate-300 mx-auto mb-2"></i>
-                        <p class="text-sm font-bold text-slate-600">No tienes ninguna reserva registrada</p>
-                        <p class="text-xs text-slate-400 mt-1">Navega por el calendario para realizar tus reservas.</p>
-                    </div>
-                ` : `
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        ${misReservas.map(res => {
-                            const recInfo = Object.values(RECURSOS).find(r => r.id === res.recursoId);
-                            const periodoInfo = PERIODOS.find(p => String(p.id) === String(res.periodoId));
-
-                            return `
-                            <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col justify-between hover:border-indigo-300 transition-all">
-                                <div>
-                                    <div class="flex justify-between items-start mb-2">
-                                        <span class="text-xs font-bold text-indigo-600 bg-indigo-100/80 px-2.5 py-1 rounded-lg">
-                                            ${res.fecha}
-                                        </span>
-                                        <span class="text-xs font-semibold text-slate-500">
-                                            ${periodoInfo?.nombre} (${periodoInfo?.rango})
-                                        </span>
-                                    </div>
-
-                                    <h3 class="font-bold text-slate-900 text-sm mt-1">${res.materia}</h3>
-                                    <p class="text-xs font-semibold text-slate-600">${res.grupo}</p>
-
-                                    <div class="mt-3 text-xs bg-white p-2.5 rounded-xl border border-slate-100 space-y-1">
-                                        <p class="font-medium text-slate-700">Recurso: <strong>${recInfo?.nombre}</strong></p>
-                                        <p class="text-slate-500">Cantidad: ${res.cantidad} ${recInfo?.tipo === 'laptop' ? 'portátiles' : 'aula'}</p>
-                                    </div>
-                                </div>
-
-                                <div class="mt-4 pt-3 border-t border-slate-200/80 flex justify-end">
-                                    ${state.deletingId === res.id ? `
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-xs text-rose-600 font-bold">¿Seguro?</span>
-                                            <button
-                                                onclick="ejecutarEliminacion('${res.id}')"
-                                                class="px-2.5 py-1 bg-rose-600 text-white rounded-lg text-xs font-bold"
-                                            >
-                                                Sí, cancelar
-                                            </button>
-                                            <button
-                                                onclick="setDeletingId(null)"
-                                                class="px-2.5 py-1 bg-slate-200 text-slate-700 rounded-lg text-xs font-bold"
-                                            >
-                                                No
-                                            </button>
-                                        </div>
-                                    ` : `
-                                        <button
-                                            onclick="setDeletingId('${res.id}')"
-                                            class="text-rose-500 hover:text-rose-700 text-xs font-bold flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-rose-50 transition-all"
-                                        >
-                                            <i data-lucide="trash-2" class="h-4 w-4"></i> Cancelar Reserva
-                                        </button>
-                                    `}
-                                </div>
-                            </div>
-                            `;
-                        }).join('')}
-                    </div>
-                `}
-            </div>
-            `;
-        }
-
-        function renderAdminViewHTML() {
-            if (!state.currentUser || state.currentUser.rol !== 'admin') return '';
-
-            return `
-            <div class="bg-white p-6 rounded-3xl shadow-sm border border-amber-200 space-y-6">
-                <div class="flex justify-between items-center border-b border-slate-100 pb-4">
-                    <div>
-                        <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
-                            <i data-lucide="shield" class="h-6 w-6 text-amber-500"></i> Panel de Administración Global
-                        </h2>
-                        <p class="text-xs text-slate-500">
-                            Privilegios exclusivos para Jefatura de Estudios (${ADMIN_EMAIL})
-                        </p>
-                    </div>
-                    <span class="bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1 rounded-full border border-amber-300">
-                        Modo Supervisión Activo
-                    </span>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-2xl">
-                        <span class="text-xs text-slate-400 font-bold uppercase">Total Reservas</span>
-                        <p class="text-2xl font-black text-slate-800 mt-1">${state.reservas.length}</p>
-                    </div>
-                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-2xl">
-                        <span class="text-xs text-slate-400 font-bold uppercase">Carros de Portátiles</span>
-                        <p class="text-2xl font-black text-indigo-600 mt-1">3 Carros (66 Equipos)</p>
-                    </div>
-                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-2xl">
-                        <span class="text-xs text-slate-400 font-bold uppercase">Aulas Digitales</span>
-                        <p class="text-2xl font-black text-emerald-600 mt-1">Aula Inf. 2</p>
-                    </div>
-                </div>
-
-                <div class="space-y-3">
-                    <h3 class="text-sm font-bold text-slate-800">Histórico de Reservas en el Sistema</h3>
-                    <div class="overflow-x-auto border border-slate-200 rounded-2xl">
-                        <table class="w-full text-left border-collapse text-xs">
-                            <thead>
-                                <tr class="bg-slate-100 text-slate-600 font-bold uppercase border-b border-slate-200">
-                                    <th class="p-3">Fecha / Tramo</th>
-                                    <th class="p-3">Docente</th>
-                                    <th class="p-3">Recurso</th>
-                                    <th class="p-3">Materia / Grupo</th>
-                                    <th class="p-3 text-right">Acción Admin</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${state.reservas.map(r => {
-                                    const rec = Object.values(RECURSOS).find(res => res.id === r.recursoId);
-                                    return `
-                                    <tr class="border-b border-slate-100 hover:bg-slate-50">
-                                        <td class="p-3 font-semibold text-slate-800">${r.fecha} (P-${r.periodoId})</td>
-                                        <td class="p-3 text-slate-700 font-medium">${r.docenteNombre}</td>
-                                        <td class="p-3 text-slate-600">${rec?.nombre} (${r.cantidad} u.)</td>
-                                        <td class="p-3 text-slate-600">${r.materia} - ${r.grupo}</td>
-                                        <td class="p-3 text-right">
-                                            <button
-                                                onclick="ejecutarEliminacion('${r.id}')"
-                                                class="text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg transition-all font-bold"
-                                                title="Borrar como admin"
-                                            >
-                                                Eliminar
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    `;
-                                }).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-            `;
-        }
-
-        function renderRegulationsViewHTML() {
-            return `
-            <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 space-y-6">
-                <div class="border-b border-slate-100 pb-4">
-                    <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
-                        <i data-lucide="file-text" class="h-6 w-6 text-indigo-600"></i> Normativa de Uso de Equipos Digitales
-                    </h2>
-                    <p class="text-xs text-slate-500">Aprobado por el Equipo Directivo del IES Francés de Aranda</p>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs text-slate-700 leading-relaxed">
-                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                        <h3 class="font-bold text-sm text-indigo-900 flex items-center gap-1.5">
-                            <i data-lucide="check" class="h-4 w-4 text-indigo-600 inline"></i> 1. Carros de Portátiles
-                        </h3>
-                        <ul class="list-disc pl-4 space-y-1 text-slate-600">
-                            <li>Los carros deben ser devueltos a la sala origen al finalizar la sesión.</li>
-                            <li>Asegurarse de dejar todos los portátiles enchufados al cable de carga.</li>
-                            <li>Notificar inmediatamente a Jefatura de Estudios si un equipo no enciende o presenta desperfectos.</li>
-                        </ul>
-                    </div>
-
-                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                        <h3 class="font-bold text-sm text-indigo-900 flex items-center gap-1.5">
-                            <i data-lucide="building" class="h-4 w-4 text-indigo-600 inline"></i> 2. Aula de Informática 2
-                        </h3>
-                        <ul class="list-disc pl-4 space-y-1 text-slate-600">
-                            <li>El profesor que reserve es responsable del orden y estado de los puestos de trabajo.</li>
-                            <li>No se permite el consumo de alimentos o bebidas dentro del aula.</li>
-                            <li>Apagar luces y proyector al finalizar la hora lectiva.</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-            `;
-        }
-
-        function renderModal() {
-            const container = document.getElementById('modal-root');
-            if (!state.showReservaModal || !state.modalPeriodo || !state.modalRecurso) {
-                container.innerHTML = '';
-                return;
-            }
-
-            const isLaptop = state.modalRecurso.tipo === 'laptop';
-            const disp = getPortatilesDisponibles(state.fechaSeleccionada, state.modalPeriodo.id, state.modalRecurso.id);
-
-            container.innerHTML = `
-            <div class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
-                    <div class="bg-slate-900 text-white p-6 relative">
-                        <button 
-                            onclick="cerrarModal()"
-                            class="absolute right-4 top-4 text-slate-400 hover:text-white p-1 rounded-xl hover:bg-slate-800 transition-all"
-                        >
-                            <i data-lucide="x" class="h-5 w-5"></i>
-                        </button>
-                        <h3 class="text-base font-bold">Confirmar Reserva de Recurso</h3>
-                        <p class="text-xs text-slate-400 mt-1">
-                            ${state.modalRecurso.nombre} • ${state.modalPeriodo.nombre} (${state.modalPeriodo.rango})
-                        </p>
-                    </div>
-
-                    <form onsubmit="handleCrearReserva(event)" class="p-6 space-y-4">
-                        <div class="bg-indigo-50/60 p-3 rounded-2xl border border-indigo-100 text-xs text-indigo-900 font-medium">
-                            Reserva para el día: <strong>${state.fechaSeleccionada}</strong>
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                                Nombre del Docente / Profesor *
-                            </label>
-                            <input
-                                type="text"
-                                required
-                                placeholder="Ej. Ana Sánchez"
-                                value="${state.modalDocenteNombre}"
-                                oninput="state.modalDocenteNombre = this.value"
-                                class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-600"
-                            />
-                        </div>
-
-                        ${isLaptop ? `
-                            <div>
-                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                                    Cantidad de Portátiles (Máx. disponibles: ${disp})
-                                </label>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    max="${disp}"
-                                    value="${state.modalCantidad}"
-                                    oninput="state.modalCantidad = Number(this.value)"
-                                    class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-indigo-600"
-                                />
-                            </div>
-                        ` : ''}
-
-                        <div>
-                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                                Materia / Asignatura *
-                            </label>
-                            <input
-                                type="text"
-                                required
-                                placeholder="Ej. Tecnología, Matemáticas, Robótica"
-                                value="${state.modalMateria}"
-                                oninput="state.modalMateria = this.value"
-                                class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-600"
-                            />
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                                Grupo de Alumnos *
-                            </label>
-                            <input
-                                type="text"
-                                required
-                                placeholder="Ej. 3º ESO A, 1º Bachillerato C"
-                                value="${state.modalGrupo}"
-                                oninput="state.modalGrupo = this.value"
-                                class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-600"
-                            />
-                        </div>
-
-                        ${state.modalError ? `
-                            <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-600 text-xs font-semibold">
-                                ${state.modalError}
-                            </div>
-                        ` : ''}
-
-                        <div class="flex space-x-2 pt-2">
-                            <button
-                                type="button"
-                                onclick="cerrarModal()"
-                                class="flex-1 py-3 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition-all"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                type="submit"
-                                class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-indigo-600/30 transition-all"
-                            >
-                                Guardar Reserva
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-            `;
-            lucide.createIcons();
-        }
-
-        function cerrarModal() {
-            state.showReservaModal = false;
-            renderModal();
-        }
-
-        function renderToast() {
-            const container = document.getElementById('toast-root');
-            if (!state.toastMessage) {
-                container.innerHTML = '';
-                return;
-            }
-
-            container.innerHTML = `
-            <div class="fixed bottom-6 right-6 z-50 animate-bounce">
-                <div class="bg-slate-900 border-l-4 border-emerald-500 text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center space-x-3">
-                    <i data-lucide="check-circle" class="h-5 w-5 text-emerald-400"></i>
-                    <p class="text-xs font-semibold tracking-wide">${state.toastMessage}</p>
-                </div>
-            </div>
-            `;
-            lucide.createIcons();
-        }
-
-        function setTab(tab) {
-            state.currentTab = tab;
-            renderApp();
-        }
-
-        function setFiltroRecurso(filtro) {
-            state.filtroRecurso = filtro;
-            renderApp();
-        }
-
-        function setDeletingId(id) {
-            state.deletingId = id;
-            renderApp();
-        }
-
-        function changeMonth(delta) {
-            state.monthViewDate = new Date(state.monthViewDate.getFullYear(), state.monthViewDate.getMonth() + delta, 1);
-            renderApp();
-        }
-
-        function handleSelectMonthDateStr(dateIso) {
-            const parts = dateIso.split('-');
-            const dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
-            handleSelectMonthDate(dateObj);
-        }
-
-        function renderApp() {
-            const app = document.getElementById('app');
-            
-            let mainContent = '';
-            if (!state.currentUser) {
-                mainContent = renderLoginHTML();
-            } else {
-                let tabContent = '';
-                if (state.currentTab === 'month') tabContent = renderMonthViewHTML();
-                else if (state.currentTab === 'daily') tabContent = renderDailyViewHTML();
-                else if (state.currentTab === 'my-bookings') tabContent = renderMyBookingsHTML();
-                else if (state.currentTab === 'admin') tabContent = renderAdminViewHTML();
-                else if (state.currentTab === 'regulations') tabContent = renderRegulationsViewHTML();
-
-                mainContent = `
-                <main class="flex-grow max-w-7xl w-full mx-auto p-4 md:p-6 flex flex-col space-y-6">
-                    ${tabContent}
-                </main>
-                `;
-            }
-
-            app.innerHTML = `
-                ${renderHeaderHTML()}
-                ${mainContent}
-            `;
-
-            // Re-render Lucide Icons después de actualizar el DOM
-            lucide.createIcons();
-        }
-
-        window.onload = function() {
-            loadReservas();
-            renderApp();
-        };
-    </script>
+<body class="bg-slate-100 min-h-screen text-slate-800 font-sans">
+
+  <!-- PANTALLA DE LOGIN -->
+  <div id="login-screen" class="flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-200">
+      <div class="text-center mb-6">
+        <div class="bg-indigo-100 text-indigo-600 p-3 rounded-full inline-block mb-3">
+          <i data-lucide="school" class="w-8 h-8"></i>
+        </div>
+        <h1 class="text-2xl font-bold text-slate-800">IES Frances de Aranda</h1>
+        <p class="text-sm text-slate-500 mt-1">Portal de Reservas Corporativo</p>
+      </div>
+
+      <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Correo Corporativo</label>
+          <input type="email" id="email" required placeholder="usuario@iesfrancesdearanda.es"
+            class="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Contraseña</label>
+          <input type="password" id="password" required placeholder="••••••••"
+            class="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition">
+        </div>
+
+        <div id="error-message" class="hidden p-3 bg-red-50 border-l-4 border-red-500 text-red-700 text-xs rounded"></div>
+
+        <button type="submit"
+          class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg transition duration-200 flex items-center justify-center gap-2">
+          <i data-lucide="log-in" class="w-4 h-4"></i> Iniciar Sesión
+        </button>
+      </form>
+      
+      <p class="text-xs text-center text-slate-400 mt-6">
+        Acceso restringido a personal autorizado de @iesfrancesdearanda.es
+      </p>
+    </div>
+  </div>
+
+  <!-- PANTALLA PRINCIPAL (CALENDARIO) -->
+  <div id="app-screen" class="hidden min-h-screen flex flex-col">
+    <!-- Encabezado -->
+    <header class="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <i data-lucide="calendar-days" class="w-6 h-6 text-indigo-600"></i>
+        <h2 class="font-bold text-slate-800 text-lg">Reserva de Espacios</h2>
+      </div>
+      
+      <div class="flex items-center gap-4">
+        <div class="text-right">
+          <p id="user-email-display" class="text-sm font-medium text-slate-700"></p>
+          <span id="role-badge" class="inline-block text-[10px] uppercase font-bold px-2 py-0.5 rounded-full"></span>
+        </div>
+        <button onclick="handleLogout()" class="p-2 text-slate-400 hover:text-red-600 transition" title="Cerrar sesión">
+          <i data-lucide="log-out" class="w-5 h-5"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Contenido -->
+    <main class="flex-1 max-w-5xl w-full mx-auto p-6">
+      
+      <!-- Panel exclusivo para Administrador -->
+      <div id="admin-panel" class="hidden mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <i data-lucide="shield-alert" class="w-5 h-5 text-amber-600"></i>
+          <div>
+            <p class="text-sm font-semibold text-amber-900">Modo Administrador (Jefatura)</p>
+            <p class="text-xs text-amber-700">Tienes permisos para gestionar o cancelar reservas globales.</p>
+          </div>
+        </div>
+        <button class="bg-amber-600 hover:bg-amber-700 text-white text-xs px-3 py-1.5 rounded-lg transition">
+          Ajustes de Jefatura
+        </button>
+      </div>
+
+      <!-- Navegación del Calendario -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <div class="flex items-center justify-between mb-6">
+          <h3 id="current-month-year" class="text-xl font-bold text-slate-800 capitalize"></h3>
+          <div class="flex gap-2">
+            <button onclick="changeMonth(-1)" class="p-2 hover:bg-slate-100 rounded-lg transition border border-slate-200">
+              <i data-lucide="chevron-left" class="w-5 h-5"></i>
+            </button>
+            <button onclick="changeMonth(1)" class="p-2 hover:bg-slate-100 rounded-lg transition border border-slate-200">
+              <i data-lucide="chevron-right" class="w-5 h-5"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Días de la semana -->
+        <div class="grid grid-cols-7 gap-2 mb-2 text-center text-xs font-semibold text-slate-400 uppercase">
+          <div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div><div>Dom</div>
+        </div>
+
+        <!-- Rejilla de días del mes -->
+        <div id="calendar-days" class="grid grid-cols-7 gap-2"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- MODAL DE CONFIRMACIÓN DE RESERVA -->
+  <div id="booking-modal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+      <h3 class="text-lg font-bold text-slate-800 mb-2">Nueva Reserva</h3>
+      <p class="text-sm text-slate-600 mb-4">Vas a realizar una reserva para el día <strong id="selected-date-text"></strong>.</p>
+      
+      <div class="space-y-3 mb-6">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Recurso o Espacio</label>
+          <select class="w-full px-3 py-2 border rounded-lg text-sm bg-white border-slate-300">
+            <option>Aula de Informática 1</option>
+            <option>Proyector Portátil</option>
+            <option>Salón de Actos</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-3">
+        <button onclick="closeModal()" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
+        <button onclick="confirmBooking()" class="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Confirmar Reserva</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentUser = null;
+    let currentDate = new Date();
+    let selectedDate = null;
+
+    const DOMAIN = "@iesfrancesdearanda.es";
+    const ADMIN_EMAIL = "jefatura@iesfrancesdearanda.es";
+
+    function handleLogin(e) {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim().toLowerCase();
+      const errorDiv = document.getElementById('error-message');
+
+      // Validar dominio
+      if (!email.endsWith(DOMAIN)) {
+        errorDiv.textContent = `Acceso denegado: Solo se permiten correos corporativos (${DOMAIN}).`;
+        errorDiv.classList.remove('hidden');
+        return;
+      }
+
+      errorDiv.classList.add('hidden');
+      currentUser = {
+        email: email,
+        isAdmin: email === ADMIN_EMAIL
+      };
+
+      // Cambiar de pantalla
+      document.getElementById('login-screen').classList.add('hidden');
+      document.getElementById('app-screen').classList.remove('hidden');
+
+      // Configurar vista de usuario
+      document.getElementById('user-email-display').textContent = currentUser.email;
+      const roleBadge = document.getElementById('role-badge');
+      
+      if (currentUser.isAdmin) {
+        roleBadge.textContent = "Administrador";
+        roleBadge.className = "inline-block text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800";
+        document.getElementById('admin-panel').classList.remove('hidden');
+      } else {
+        roleBadge.textContent = "Usuario";
+        roleBadge.className = "inline-block text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800";
+      }
+
+      renderCalendar();
+      lucide.createIcons();
+    }
+
+    function handleLogout() {
+      currentUser = null;
+      document.getElementById('app-screen').classList.add('hidden');
+      document.getElementById('login-screen').classList.remove('hidden');
+      document.getElementById('login-form').reset();
+    }
+
+    function renderCalendar() {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      
+      // Ajuste para comenzar en Lunes (0: Lun, 6: Dom)
+      let startingDay = firstDay.getDay() - 1;
+      if (startingDay === -1) startingDay = 6;
+
+      const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+      document.getElementById('current-month-year').textContent = `${monthNames[month]} ${year}`;
+
+      const calendarDays = document.getElementById('calendar-days');
+      calendarDays.innerHTML = '';
+
+      // Huecos del mes anterior
+      for (let i = 0; i < startingDay; i++) {
+        const emptyCell = document.createElement('div');
+        emptyCell.className = "h-20 bg-slate-50/50 rounded-lg border border-dashed border-slate-200";
+        calendarDays.appendChild(emptyCell);
+      }
+
+      // Días del mes actual
+      for (let day = 1; day <= lastDay.getDate(); day++) {
+        const dayCell = document.createElement('button');
+        dayCell.onclick = () => selectDate(day, month + 1, year);
+        dayCell.className = "h-20 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-500 hover:shadow-sm transition flex flex-col justify-between text-left group";
+        
+        dayCell.innerHTML = `
+          <span class="text-sm font-semibold text-slate-700 group-hover:text-indigo-600">${day}</span>
+          <span class="text-[10px] text-slate-400 group-hover:text-indigo-500">+ Reservar</span>
+        `;
+        calendarDays.appendChild(dayCell);
+      }
+    }
+
+    function changeMonth(delta) {
+      currentDate.setMonth(currentDate.getMonth() + delta);
+      renderCalendar();
+    }
+
+    function selectDate(day, month, year) {
+      selectedDate = `${day}/${month}/${year}`;
+      document.getElementById('selected-date-text').textContent = selectedDate;
+      document.getElementById('booking-modal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('booking-modal').classList.add('hidden');
+    }
+
+    function confirmBooking() {
+      alert(`Reserva confirmada con éxito para el ${selectedDate}`);
+      closeModal();
+    }
+
+    // Inicializar iconos de Lucide al cargar
+    lucide.createIcons();
+  </script>
 </body>
 </html>
